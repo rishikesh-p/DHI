@@ -1,0 +1,11 @@
+venv/
+.env
+storage/
+__pycache__/
+*.pyc
+pkg/
+src/
+linux-ai/
+dhi/
+*.pkg.tar.zst
+.pytest_cache/
