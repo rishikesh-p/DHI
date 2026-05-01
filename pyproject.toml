@@ -20,7 +20,9 @@ dependencies = [
     "pyaudio",
     "lancedb",
     "rich",
-    "numpy"
+    "numpy",
+    "pandas",
+    "pyarrow"
 ]
 
 [project.optional-dependencies]
