@@ -1,0 +1,45 @@
+pkgname=dhi
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="A hybrid local/cloud AI OS agent in a Bubblewrap sandbox"
+arch=('any')
+url="https://github.com/rishikesh/dhi"
+license=('MIT')
+
+# We only need python-build and python-installer for building
+makedepends=('python' 'python-pip')
+
+depends=(
+    'python'
+    'bubblewrap'
+    'ollama'
+)
+
+source=("dhi-${pkgver}.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+    cd "$srcdir"
+    # No compilation needed here. Pip will handle everything in package()
+}
+
+package() {
+    cd "$srcdir"
+    
+    # 1. Create target directories
+    install -dm755 "$pkgdir/opt/dhi"
+    install -dm755 "$pkgdir/usr/bin"
+    
+    # 2. Create the virtual environment using the system Python
+    /usr/bin/python -m venv "$pkgdir/opt/dhi/venv"
+    
+    # 3. Install the app and all its dependencies safely into the venv
+    "$pkgdir/opt/dhi/venv/bin/pip" install --isolated .
+    
+    # 4. Symlink the executable so it's available globally in the PATH
+    ln -s /opt/dhi/venv/bin/dhi "$pkgdir/usr/bin/dhi"
+    
+    # 5. Fix hardcoded absolute paths inside the virtual environment
+    # Pip hardcodes the temporary build directory into the scripts. We must strip it out.
+    find "$pkgdir/opt/dhi/venv/bin" -type f -exec sed -i "s|$pkgdir||g" {} +
+}

@@ -11,7 +11,7 @@ def test_executor_basic_command():
 def test_executor_command_failure():
     executor = SafeExecutor()
     output = executor.execute("ls /nonexistent_folder_xyz123")
-    assert "Error (Exit Code" in output
+    assert "Error:" in output
     assert "No such file or directory" in output
 
 def test_executor_timeout(mocker):

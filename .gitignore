@@ -3,9 +3,8 @@ venv/
 storage/
 __pycache__/
 *.pyc
-pkg/
-src/
-linux-ai/
-dhi/
 *.pkg.tar.zst
 .pytest_cache/
+aur-build/dhi/pkg/
+aur-build/dhi/src/
+*.egg-info/
