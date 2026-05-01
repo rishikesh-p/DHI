@@ -77,8 +77,12 @@ class SafeExecutor:
             )
             
             if result.returncode == 0:
-                console.print("[success]✓ Execution Successful[/success]")
-                return result.stdout.strip() if result.stdout.strip() else "Command executed successfully with no output."
+                stdout_text = result.stdout.strip()
+                if "Error:" in stdout_text:
+                    console.print("[warning]⚠ Script executed (Exit 0), but output contains an Error.[/warning]")
+                else:
+                    console.print("[success]✓ Execution Successful[/success]")
+                return stdout_text if stdout_text else "Command executed successfully with no output."
             else:
                 error_msg = result.stderr.strip()
                 # If stderr has text, it's a real crash (syntax error, missing package, etc.)
