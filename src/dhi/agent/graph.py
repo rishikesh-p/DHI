@@ -37,23 +37,26 @@ def get_memory():
     if _memory is None: _memory = MemorySystem()
     return _memory
 
+_local_brain = None
+_cloud_brain = None
+
 def get_local_brain():
-    global local_brain
-    if local_brain is None:
-        local_brain = AI_Brain(mode="local")
-    return local_brain
+    global _local_brain
+    if _local_brain is None:
+        _local_brain = AI_Brain(mode="local")
+    return _local_brain
 
 def get_cloud_brain():
-    global cloud_brain
-    if cloud_brain is None:
-        cloud_brain = AI_Brain(mode="cloud")
-    return cloud_brain
+    global _cloud_brain
+    if _cloud_brain is None:
+        _cloud_brain = AI_Brain(mode="cloud")
+    return _cloud_brain
 
 def reload_agent():
-    """Forces the Brains to reload their configs on the next request."""
-    global local_brain, cloud_brain
-    local_brain = None
-    cloud_brain = None
+    """Dynamically clears the AI Brain cache to force reload on next query."""
+    global _local_brain, _cloud_brain
+    _local_brain = None
+    _cloud_brain = None
 
 def parse_llm_output(response: str):
     if not response or not response.strip():
@@ -102,7 +105,14 @@ def node_local_reasoner(state: AgentState):
     console.print(f"[muted]⚙ Prompt Length: {len(prompt)} characters[/muted]")
     
     start_time = time.time()
-    response = get_local_brain().think(prompt)
+    try:
+        response = get_local_brain().think(prompt)
+    except Exception as e:
+        return {
+            "command": None,
+            "command_output": f"Error connecting to Local AI: {e}",
+            "error": None
+        }
     end_time = time.time()
     
     console.print(f"[muted]⏱ LLM Inference Time: {end_time - start_time:.2f} seconds[/muted]")    
@@ -134,7 +144,14 @@ def node_cloud_reasoner(state: AgentState):
     if state.get('error'):
         prompt += f"\n\nCRITICAL ERROR FROM LAST ATTEMPT: {state['error']}\nFix the code."
 
-    response = get_cloud_brain().think(prompt)
+    try:
+        response = get_cloud_brain().think(prompt)
+    except Exception as e:
+        return {
+            "command": None,
+            "command_output": f"Error connecting to Cloud AI: {e}\nPlease go to [s]ettings and configure your API key.",
+            "error": None
+        }
     command = parse_llm_output(response)
     
     return {
