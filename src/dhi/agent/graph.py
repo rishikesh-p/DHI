@@ -82,7 +82,8 @@ def node_local_reasoner(state: AgentState):
     context = get_memory().recall(state['input_text'])
 
     if config.get("stateful_local", False):
-        history_str = "\n".join([f"{msg.type}: {msg.content}" for msg in state.get('messages', [])[-5:]])
+        # Truncate each message to 500 chars to prevent 4B context window collapse
+        history_str = "\n".join([f"{msg.type}: {msg.content[:500] + '...' if len(msg.content) > 500 else msg.content}" for msg in state.get('messages', [])[-5:]])
     else:
         history_str = "STATELESS MODE: No prior history provided to prevent local model hallucination."
 

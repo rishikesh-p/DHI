@@ -49,7 +49,7 @@ class AI_Brain:
             self.llm = ChatOllama(
                 model=model_name,
                 temperature=temperature,
-                stop=["<|endoftext|>", "User:"], 
+                stop=["<|endoftext|>", "User:", "<|im_end|>", "<|im_start|>"], 
                 reasoning=False,
                 keep_alive="30m",
                 max_tokens=100,
