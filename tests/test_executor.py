@@ -4,15 +4,15 @@ from dhi.tools.executor import SafeExecutor
 
 def test_executor_basic_command():
     executor = SafeExecutor()
-    output = executor.execute("echo 'hello pytest'")
-    assert "hello pytest" in output
-    assert "Error" not in output
+    result = executor.execute("echo 'hello pytest'")
+    assert result["success"] is True
+    assert "hello pytest" in result["output"]
 
 def test_executor_command_failure():
     executor = SafeExecutor()
-    output = executor.execute("ls /nonexistent_folder_xyz123")
-    assert "Error:" in output
-    assert "No such file or directory" in output
+    result = executor.execute("ls /nonexistent_folder_xyz123")
+    assert result["success"] is False
+    assert "No such file or directory" in result["output"]
 
 def test_executor_timeout(mocker):
     # Mock subprocess.run to raise a TimeoutExpired exception so we don't have to wait 10 seconds
@@ -22,7 +22,7 @@ def test_executor_timeout(mocker):
     )
     
     executor = SafeExecutor()
-    output = executor.execute("sleep 15")
+    result = executor.execute("sleep 15")
     
-    assert "Execution timed out" in output
-    assert "Error" in output
+    assert result["success"] is False
+    assert "Execution timed out" in result["output"]

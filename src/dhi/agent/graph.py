@@ -181,11 +181,12 @@ def node_executor(state: AgentState):
 
     console.print(f"[info]🚀 Executing: {escape(cmd)}[/info]")
     
-    output = get_executor().execute(cmd)
+    exec_result = get_executor().execute(cmd)
     
-    if "Error:" in output:
-         return {"command_output": output, "error": output, "retry_count": state["retry_count"] + 1}
+    if not exec_result["success"]:
+         return {"command_output": exec_result["output"], "error": exec_result["output"], "retry_count": state["retry_count"] + 1}
 
+    output = exec_result["output"]
     if state.get("input_text"):
         get_memory().save(f"Request: {state['input_text']} -> Command: {cmd}")
     

@@ -82,20 +82,22 @@ class SafeExecutor:
                     console.print("[warning]⚠ Script executed (Exit 0), but output contains an Error.[/warning]")
                 else:
                     console.print("[success]✓ Execution Successful[/success]")
-                return stdout_text if stdout_text else "Command executed successfully with no output."
+                
+                final_out = stdout_text if stdout_text else "Command executed successfully with no output."
+                return {"success": True, "output": final_out}
             else:
                 error_msg = result.stderr.strip()
                 # If stderr has text, it's a real crash (syntax error, missing package, etc.)
                 if error_msg:
                     console.print(f"[error]⨯ Execution Failed (Exit Code {result.returncode})[/error]")
-                    return f"Error: {error_msg}"
+                    return {"success": False, "output": f"Error: {error_msg}"}
                 # If stderr is empty, it was a silent failure (like an empty grep search)
                 else:
                     console.print(f"[warning]⚠ Silent Exit (Code {result.returncode}) - No matches found.[/warning]")
-                    return "Command executed, but returned no matches or output."
+                    return {"success": False, "output": "Command executed, but returned no matches or output."}
 
         except subprocess.TimeoutExpired:
             console.print("[error]⨯ Command Timed Out[/error]")
-            return "Error: Execution timed out."
+            return {"success": False, "output": "Error: Execution timed out."}
         except Exception as e:
-            return f"Error: {e}"
+            return {"success": False, "output": f"Error: {e}"}
