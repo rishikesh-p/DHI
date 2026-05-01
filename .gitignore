@@ -1,0 +1,10 @@
+venv/
+.env
+storage/
+__pycache__/
+*.pyc
+*.pkg.tar.zst
+.pytest_cache/
+aur-build/dhi/pkg/
+aur-build/dhi/src/
+*.egg-info/

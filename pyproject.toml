@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dhi"
+version = "0.1.0"
+description = "A hybrid local/cloud AI OS agent in a Bubblewrap sandbox"
+authors = [{name = "Rishikesh"}]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "langgraph",
+    "langgraph-checkpoint-sqlite",
+    "langchain-ollama",
+    "langchain-google-genai",
+    "python-dotenv",
+    "faster-whisper",
+    "SpeechRecognition",
+    "pyaudio",
+    "lancedb",
+    "rich",
+    "numpy"
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-mock"
+]
+
+[project.scripts]
+dhi = "dhi.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
