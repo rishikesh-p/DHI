@@ -37,13 +37,23 @@ def get_memory():
     if _memory is None: _memory = MemorySystem()
     return _memory
 
+def get_local_brain():
+    global local_brain
+    if local_brain is None:
+        local_brain = AI_Brain(mode="local")
+    return local_brain
+
+def get_cloud_brain():
+    global cloud_brain
+    if cloud_brain is None:
+        cloud_brain = AI_Brain(mode="cloud")
+    return cloud_brain
+
 def reload_agent():
-    """Dynamically reloads AI Brains based on config."""
+    """Forces the Brains to reload their configs on the next request."""
     global local_brain, cloud_brain
-    config = load_config()
-    
-    local_brain = AI_Brain(mode="local")
-    cloud_brain = AI_Brain(mode="cloud")
+    local_brain = None
+    cloud_brain = None
 
 def parse_llm_output(response: str):
     if not response or not response.strip():
@@ -92,7 +102,7 @@ def node_local_reasoner(state: AgentState):
     console.print(f"[muted]⚙ Prompt Length: {len(prompt)} characters[/muted]")
     
     start_time = time.time()
-    response = local_brain.think(prompt)
+    response = get_local_brain().think(prompt)
     end_time = time.time()
     
     console.print(f"[muted]⏱ LLM Inference Time: {end_time - start_time:.2f} seconds[/muted]")    
@@ -124,7 +134,7 @@ def node_cloud_reasoner(state: AgentState):
     if state.get('error'):
         prompt += f"\n\nCRITICAL ERROR FROM LAST ATTEMPT: {state['error']}\nFix the code."
 
-    response = cloud_brain.think(prompt)
+    response = get_cloud_brain().think(prompt)
     command = parse_llm_output(response)
     
     return {
