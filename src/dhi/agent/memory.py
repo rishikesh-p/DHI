@@ -1,7 +1,16 @@
+import time
 import lancedb
 import os
 from langchain_ollama import OllamaEmbeddings
 from dhi.ui import console
+
+# Distance threshold — discard results less similar than this
+# LanceDB uses L2 distance by default: lower = more similar
+# ~1.0 is a reasonable cutoff for nomic-embed-text (768-dim, normalized)
+RELEVANCE_THRESHOLD = 1.0
+
+# If a near-duplicate exists within this distance, skip saving
+DEDUP_THRESHOLD = 0.3
 
 class MemorySystem:
     def __init__(self, db_path=None):
@@ -21,34 +30,66 @@ class MemorySystem:
             # ATTEMPT 1: Try to open the existing table
             try:
                 self.table = self.db.open_table("knowledge_base")
+                
+                # Verify schema backward compatibility
+                expected_columns = {"text", "vector", "timestamp", "success"}
+                existing_columns = set(self.table.schema.names)
+                
+                if not expected_columns.issubset(existing_columns):
+                    console.print("[warning]⚠ Outdated Memory DB schema detected. Upgrading...[/warning]")
+                    self.db.drop_table("knowledge_base")
+                    raise ValueError("Schema upgrade required")
+                    
                 console.print("[success]✓ Loaded existing database.[/success]")
             except:
-                # ATTEMPT 2: If open fails, create it
+                # ATTEMPT 2: If open fails, create it with the schema
                 console.print("[warning]⚠ Creating new knowledge base...[/warning]")
-                data = [{"text": "Init", "vector": self.embedder.embed_query("Init")}]
+                seed_vec = self.embedder.embed_query("__init__")
+                data = [{
+                    "text": "__init__",
+                    "vector": seed_vec,
+                    "timestamp": time.time(),
+                    "success": True
+                }]
                 self.table = self.db.create_table("knowledge_base", data)
                 
         except Exception as e:
             console.print(f"[error]⨯ Critical DB Error: {e}[/error]")
             self.table = None
 
-    def save(self, text):
+    def save(self, text, success=True):
         """
         Store a text snippet in long-term memory.
+        Skips saving if a near-duplicate already exists (deduplication).
         """
         if not self.table: return
-        
-        console.print(f"[info]ℹ Storing: '{text}'...[/info]")
         
         # 1. Convert text to vector
         vector = self.embedder.embed_query(text)
         
-        # 2. Add to DB
-        self.table.add([{"text": text, "vector": vector}])
+        # 2. Deduplicate — check if a very similar entry already exists
+        try:
+            existing = self.table.search(vector).limit(1).to_pandas()
+            if not existing.empty and existing.iloc[0]['_distance'] < DEDUP_THRESHOLD:
+                console.print(f"[muted]ℹ Skipping save — similar entry already exists.[/muted]")
+                return
+        except Exception:
+            pass  # If search fails, save anyway
+        
+        # 3. Add to DB with metadata
+        self.table.add([{
+            "text": text,
+            "vector": vector,
+            "timestamp": time.time(),
+            "success": success
+        }])
+        console.print(f"[muted]ℹ Stored in memory.[/muted]")
 
-    def recall(self, query, limit=1):
+    def recall(self, query, limit=3):
         """
         Find the most relevant memories for a query.
+        Returns up to `limit` results, filtered by relevance threshold.
+        Excludes the __init__ seed record.
         """
         if not self.table: return ""
         
@@ -56,15 +97,27 @@ class MemorySystem:
         query_vec = self.embedder.embed_query(query)
         
         # 2. Search DB
-        results = self.table.search(query_vec).limit(limit).to_pandas()
+        results = self.table.search(query_vec).limit(limit + 1).to_pandas()
         
         if results.empty:
             return ""
         
-        # Return the best match text
-        best_match = results.iloc[0]['text']
-        console.print(f"[system]✦ Recalled: {best_match}[/system]")
-        return best_match
+        # 3. Filter: remove seed record, apply relevance threshold
+        results = results[results['text'] != "__init__"]
+        results = results[results['_distance'] < RELEVANCE_THRESHOLD]
+        
+        if results.empty:
+            return ""
+        
+        # 4. Take top `limit` results
+        results = results.head(limit)
+        
+        # 5. Format as context string
+        matches = results['text'].tolist()
+        context = "\n".join(f"- {m}" for m in matches)
+        
+        console.print(f"[system]✦ Recalled {len(matches)} memory(s)[/system]")
+        return context
 
 # --- Unit Test ---
 if __name__ == "__main__":
@@ -72,11 +125,14 @@ if __name__ == "__main__":
     
     # Test 1: Teach it something
     print("\n--- Teaching ---")
-    mem.save("The user's favorite editor is Neovim.")
-    mem.save("The project is located in /home/rishikesh/linux-ai")
+    mem.save("Request: list files -> Command: ls -la")
+    mem.save("Request: show disk usage -> Command: df -h")
     
-    # Test 2: Ask it something
+    # Test 2: Try saving a duplicate
+    print("\n--- Duplicate ---")
+    mem.save("Request: list files -> Command: ls -la")  # Should skip
+    
+    # Test 3: Ask it something
     print("\n--- Asking ---")
-    q = "What text editor do I use?"
-    context = mem.recall(q)
-    print(f"Context found: {context}")
+    context = mem.recall("list all my files")
+    print(f"Context found:\n{context}")
