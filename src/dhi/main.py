@@ -88,7 +88,8 @@ def execute_graph(app, config, user_input):
         "messages": [HumanMessage(content=user_input)], 
         "input_text": user_input,
         "retry_count": 0, 
-        "error": None
+        "error": None,
+        "route_confidence": 0.0
     }
     
     result = app.invoke(new_inputs, config=config)

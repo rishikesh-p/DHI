@@ -14,6 +14,47 @@ from dhi.agent.memory import MemorySystem
 from dhi.agent.router import Router
 from dhi.config import load_config
 
+# --- System Prompts ---
+# These go into the system role where LLMs give them the most weight.
+# Local prompt is deliberately shorter to fit small context windows (2048 tokens).
+
+LOCAL_SYSTEM_PROMPT = """You are DHI, a terminal execution engine on Arch Linux inside a Bubblewrap sandbox.
+
+RULES:
+- Output ONLY a bash code block. No explanations, no conversation.
+- NEVER use sudo, pacman, yay, or apt. You have no root privileges.
+- For multi-line files, use a quoted heredoc: cat << 'EOF' > filename
+- For knowledge questions, use echo to print the answer.
+
+Example — User: "list files by size"
+```bash
+ls -lhS
+```
+
+Example — User: "what is a tarball"
+```bash
+echo "A tarball is a compressed archive file created with tar, commonly using .tar.gz or .tar.bz2 extensions."
+```"""
+
+CLOUD_SYSTEM_PROMPT = """You are DHI, a strict terminal execution engine running on Arch Linux inside a Bubblewrap sandbox.
+
+CRITICAL RULES:
+1. Output ONLY executable code inside a single ```bash``` block. No prose before or after.
+2. NEVER use sudo, pacman, yay, apt, or any package manager. You have NO root privileges.
+3. For multi-line file creation, ALWAYS use a quoted heredoc to prevent quoting errors: cat << 'EOF' > filename
+4. For knowledge/informational questions, use echo to print a concise answer.
+5. Prefer simple, portable solutions. Use coreutils and standard tools when possible.
+
+Example — User: "find duplicate files in this directory"
+```bash
+find . -type f -exec md5sum {} + | sort | uniq -d -w 32
+```
+
+Example — User: "explain what cron does"
+```bash
+echo "cron is a time-based job scheduler in Unix. You define scheduled tasks in a crontab file using the format: minute hour day month weekday command."
+```"""
+
 # Initialize Tools (Lazy Loaded)
 _router = None
 _executor = None
@@ -59,55 +100,62 @@ def reload_agent():
     _cloud_brain = None
 
 def parse_llm_output(response: str):
+    """Extract executable code from LLM response.
+    Only accepts properly fenced code blocks (```bash ... ```).
+    Returns None if no code block is found — this triggers a retry."""
     if not response or not response.strip():
         return None
         
     code_block = re.search(r"```(?:bash|sh|python)?\n(.*?)```", response, re.DOTALL)
     if code_block:
         return code_block.group(1).strip()
-    
-    lines = response.strip().split('\n')
-    if len(lines) == 1: 
-         return response.strip()
 
+    # No code block found. Do NOT fall back to executing raw text.
+    # The LLM failed to follow the format — let the retry loop handle it.
     return None
 
 def node_router(state: AgentState):
-    decision = get_router().route(state['input_text'])
-    console.print(f"[info]ℹ Route Selected: {decision.upper()}[/info]")
-    return {"plan": decision}
+    result = get_router().route(state['input_text'])
+    decision = result["route"]
+    confidence = result["confidence"]
+    console.print(f"[info]ℹ Route Selected: {decision.upper()} (confidence: {confidence:.0%})[/info]")
+    return {"plan": decision, "route_confidence": confidence}
+
+def _build_user_prompt(state: AgentState, history_str: str) -> str:
+    """Build the user-message prompt. User intent comes first (highest attention),
+    then optional context, then error feedback at the end (recency bias)."""
+    parts = [f"Task: {state['input_text']}"]
+
+    # Add vector DB context if available
+    context = get_memory().recall(state['input_text'])
+    if context and context.strip():
+        parts.append(f"Relevant past commands:\n{context}")
+
+    # Add conversation history
+    if history_str:
+        parts.append(f"Recent history:\n{history_str}")
+
+    # Error feedback goes last — recency bias makes the LLM focus on fixing it
+    if state.get('error'):
+        parts.append(f"ERROR FROM LAST ATTEMPT — fix this:\n{state['error']}")
+
+    return "\n\n".join(parts)
 
 def node_local_reasoner(state: AgentState):
     config = load_config()
-    context = get_memory().recall(state['input_text'])
 
     if config.get("stateful_local", False):
         # Truncate each message to 500 chars to prevent 4B context window collapse
         history_str = "\n".join([f"{msg.type}: {msg.content[:500] + '...' if len(msg.content) > 500 else msg.content}" for msg in state.get('messages', [])[-5:]])
     else:
-        history_str = "STATELESS MODE: No prior history provided to prevent local model hallucination."
+        history_str = ""
 
-    prompt = (
-        f"Recent Conversation History:\n{history_str}\n\n"
-        f"User Intent: {state['input_text']}\n"
-        f"Context from Vector DB: {context}\n"
-        f"System Context: You are Pragma-OS, a strict terminal execution engine running in an Arch Linux Bubblewrap sandbox.\n"
-        f"CRITICAL RULES:\n"
-        f"1. You DO NOT converse. You ONLY output executable code.\n"
-        f"2. NO 'sudo', NO 'pacman', NO 'yay'. You lack root privileges.\n"
-        f"3. You MUST wrap the exact bash command in a ```bash ``` block.\n"
-        f"4. Do not provide explanations before or after the code block.\n"
-        f"5. IMPORTANT: When writing multi-line files or scripts, ALWAYS use a quoted Heredoc to prevent quoting errors: `cat << 'EOF' > filename`.\n"
-    )
-    
-    if state.get('error'):
-        prompt += f"\n\nCRITICAL ERROR FROM LAST ATTEMPT: {state['error']}\nFix the command to resolve this error."
-
+    prompt = _build_user_prompt(state, history_str)
     console.print(f"[muted]⚙ Prompt Length: {len(prompt)} characters[/muted]")
     
     start_time = time.time()
     try:
-        response = get_local_brain().think(prompt)
+        response = get_local_brain().think(prompt, system_prompt=LOCAL_SYSTEM_PROMPT)
     except Exception as e:
         return {
             "command": None,
@@ -126,27 +174,12 @@ def node_local_reasoner(state: AgentState):
     }
 
 def node_cloud_reasoner(state: AgentState):
-    context = get_memory().recall(state['input_text'])
     history_str = "\n".join([f"{msg.type}: {msg.content}" for msg in state.get('messages', [])[-5:]])
 
-    prompt = (
-        f"Recent Conversation History:\n{history_str}\n\n"
-        f"User Intent: {state['input_text']}\n"
-        f"Context from Vector DB: {context}\n"
-        f"System Context: You are Pragma-OS, a strict terminal execution engine running in an Arch Linux Bubblewrap sandbox.\n"
-        f"CRITICAL RULES:\n"
-        f"1. You DO NOT converse. You ONLY output executable code.\n"
-        f"2. NO 'sudo', NO 'pacman', NO 'yay'. You lack root privileges.\n"
-        f"3. You MUST wrap the exact bash command in a ```bash ``` block.\n"
-        f"4. Do not provide explanations before or after the code block.\n"
-        f"5. IMPORTANT: When writing multi-line files or scripts, ALWAYS use a quoted Heredoc to prevent quoting errors: `cat << 'EOF' > filename`.\n"
-    )
-    
-    if state.get('error'):
-        prompt += f"\n\nCRITICAL ERROR FROM LAST ATTEMPT: {state['error']}\nFix the code."
+    prompt = _build_user_prompt(state, history_str)
 
     try:
-        response = get_cloud_brain().think(prompt)
+        response = get_cloud_brain().think(prompt, system_prompt=CLOUD_SYSTEM_PROMPT)
     except Exception as e:
         return {
             "command": None,
@@ -172,8 +205,14 @@ def node_executor(state: AgentState):
     # Human-in-the-Loop Confirmation
     config = load_config()
     if config.get("require_confirmation", True):
-        dangerous_commands = ["rm", "mv", "touch", "reboot", "shutdown"]
-        if any(cmd.strip().startswith(d) for d in dangerous_commands):
+        # Scan the ENTIRE command for dangerous programs — not just the start.
+        # This catches: echo foo && rm -rf /, pipes, subshells, etc.
+        dangerous_patterns = [
+            r'\brm\b', r'\bmv\b', r'\bdd\b', r'\bmkfs\b',
+            r'\bchmod\b', r'\bchown\b', r'\bkillall\b', r'\bpkill\b',
+            r'\bshred\b', r'\breboot\b', r'\bshutdown\b', r'\bpoweroff\b',
+        ]
+        if any(re.search(pattern, cmd) for pattern in dangerous_patterns):
             console.print(f"[warning]WARNING: Destructive Command Detected[/warning]")
             console.print(f"[bold red]Command: {escape(cmd)}[/bold red]")
             proceed = Prompt.ask("Execute?", choices=["y", "n"])
@@ -198,16 +237,21 @@ def decide_route(state: AgentState):
 
 def should_continue(state: AgentState):
     if state['error']:
+        confidence = state.get('route_confidence', 1.0)
+
         if state['plan'] == 'cloud':
             if state['retry_count'] < 3:
                 return "retry_cloud"
             return "end"
         else:
-            if state['retry_count'] < 3:
+            # Low-confidence local routes get fewer retries before fallback offer
+            local_retry_limit = 2 if confidence < 0.5 else 3
+
+            if state['retry_count'] < local_retry_limit:
                 return "retry_local"
-            elif state['retry_count'] < 6:
-                if state['retry_count'] == 3:
-                    console.print("[warning]⚠ Local Model failed 3 times.[/warning]")
+            elif state['retry_count'] < local_retry_limit + 3:
+                if state['retry_count'] == local_retry_limit:
+                    console.print(f"[warning]⚠ Local Model failed {local_retry_limit} times (route confidence: {confidence:.0%}).[/warning]")
                     proceed = Prompt.ask("[bold yellow]Fallback to Cloud Model (Gemini)? (Data will be sent to the cloud)[/bold yellow]", choices=["y", "n"])
                     if proceed == "n":
                         return "end"

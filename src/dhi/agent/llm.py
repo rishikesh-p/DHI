@@ -60,13 +60,11 @@ class AI_Brain:
     def think(self, prompt, system_prompt=None):
         """
         Sends a prompt to the selected LLM and streams the response.
+        system_prompt: Required. The behavioral instructions for the LLM.
+                       Callers must explicitly provide this — there is no default.
         """
-        # Default System Prompt if none provided
         if not system_prompt:
-            system_prompt = (
-                "You are a helpful Linux Assistant. "
-                "Output concise and accurate answers."
-            )
+            raise ValueError("system_prompt is required. Pass LOCAL_SYSTEM_PROMPT or CLOUD_SYSTEM_PROMPT from graph.py.")
 
         messages = [
             SystemMessage(content=system_prompt),
@@ -95,15 +93,17 @@ class AI_Brain:
 
 # --- Unit Test ---
 if __name__ == "__main__":
+    test_prompt = "You are a test assistant. Output only the exact text requested."
+    
     # Test Local
     print("\n--- Testing Local ---")
     local_brain = AI_Brain(mode="local")
-    print(local_brain.think("Say 'Local is working'"))
+    print(local_brain.think("Say 'Local is working'", system_prompt=test_prompt))
 
     # Test Cloud
     print("\n--- Testing Cloud ---")
     try:
         cloud_brain = AI_Brain(mode="cloud")
-        print(cloud_brain.think("Say 'Cloud is working'"))
+        print(cloud_brain.think("Say 'Cloud is working'", system_prompt=test_prompt))
     except Exception as e:
         print(f"Cloud Test Failed: {e}")
