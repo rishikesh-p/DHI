@@ -115,6 +115,13 @@ def parse_llm_output(response: str):
     return None
 
 def node_router(state: AgentState):
+    # 1. Check for Exact Semantic Match (Short-circuit the LLM)
+    cached_cmd = get_memory().exact_match(state['input_text'])
+    if cached_cmd:
+        console.print(f"[success]⚡ Semantic Cache Hit! Bypassing reasoning engine.[/success]")
+        return {"plan": "executor", "command": cached_cmd, "route_confidence": 1.0}
+
+    # 2. Run normal mathematical routing
     result = get_router().route(state['input_text'])
     decision = result["route"]
     confidence = result["confidence"]
@@ -221,7 +228,15 @@ def node_executor(state: AgentState):
 
     console.print(f"[info]🚀 Executing: {escape(cmd)}[/info]")
     
-    exec_result = get_executor().execute(cmd)
+    # 1. Determine Network Requirement
+    # Default to Zero-Trust (No Internet) unless explicitly asked
+    network_keywords = ['curl', 'wget', 'download', 'git', 'http', 'https', 'api', 'ping', 'ssh']
+    requires_network = any(word in state.get('input_text', '').lower() for word in network_keywords)
+    
+    if not requires_network:
+        console.print(f"[muted]🔒 Network Sandbox Enabled (Zero-Trust)[/muted]")
+        
+    exec_result = get_executor().execute(cmd, requires_network=requires_network)
     
     if not exec_result["success"]:
          return {"command_output": exec_result["output"], "error": exec_result["output"], "retry_count": state["retry_count"] + 1}
@@ -271,7 +286,7 @@ workflow.set_entry_point("router")
 workflow.add_conditional_edges(
     "router",
     decide_route,
-    {"local": "local", "cloud": "cloud"}
+    {"local": "local", "cloud": "cloud", "executor": "executor"}
 )
 
 workflow.add_edge("local", "executor")

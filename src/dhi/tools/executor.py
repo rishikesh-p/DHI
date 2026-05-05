@@ -19,7 +19,7 @@ class SafeExecutor:
         if self.hypr_sig:
              console.print("[system]✦ Hyprland IPC Detected[/system]")
 
-    def execute(self, command):
+    def execute(self, command, requires_network=False):
         # We don't print the execution here anymore because graph.py handles the UI logging for execution.
         # This keeps the output cleaner.
 
@@ -41,6 +41,10 @@ class SafeExecutor:
             "--die-with-parent",
             "--new-session"
         ]
+        
+        # --- ZERO-TRUST NETWORK SANDBOXING ---
+        if not requires_network:
+            bwrap_cmd.append("--unshare-net")
 
         # --- HYPRLAND INTEGRATION ---
         # If we are in Hyprland, we must expose the socket to control windows

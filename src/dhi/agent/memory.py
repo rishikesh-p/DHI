@@ -119,6 +119,27 @@ class MemorySystem:
         console.print(f"[system]✦ Recalled {len(matches)} memory(s)[/system]")
         return context
 
+    def exact_match(self, query, threshold=0.05):
+        """
+        Check if the query matches a previous intent almost exactly.
+        If distance is < 0.05, we short-circuit the LLM and return the exact command.
+        """
+        if not self.table: return None
+        
+        query_vec = self.embedder.embed_query(query)
+        try:
+            results = self.table.search(query_vec).limit(2).to_pandas()
+            for _, row in results.iterrows():
+                if row['text'] == "__init__": continue
+                if row['_distance'] < threshold:
+                    full_text = row['text']
+                    if " -> Command: " in full_text:
+                        cmd = full_text.split(" -> Command: ", 1)[1]
+                        return cmd
+            return None
+        except Exception:
+            return None
+
 # --- Unit Test ---
 if __name__ == "__main__":
     mem = MemorySystem()
