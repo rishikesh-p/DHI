@@ -32,7 +32,7 @@ from dhi.agent.graph import LOCAL_SYSTEM_PROMPT, parse_llm_output
 from dhi.tools.executor import SafeExecutor
 
 # --- Configuration ---
-MODEL_NAME = "gemma4:e4b-it"  # The model the paper claims to test on
+MODEL_NAME = "gemma4:e4b-it-q4_K_M"  # The model the paper claims to test on, matching installed tag
 MAX_RETRIES = 3               # Maximum retry attempts per intent
 
 

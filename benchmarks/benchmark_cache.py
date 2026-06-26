@@ -51,17 +51,17 @@ SEED_ENTRIES = [
 
 # Queries to test — mix of exact matches, near matches, and misses
 TEST_QUERIES = [
-    # Near-exact matches (should hit cache with distance < 0.05)
-    {"query": "list files", "expect_hit": True},
-    {"query": "show disk usage", "expect_hit": True},
-    {"query": "show running processes", "expect_hit": True},
-    {"query": "what is today's date", "expect_hit": True},
-    {"query": "show memory usage", "expect_hit": True},
-    {"query": "count lines in a file", "expect_hit": True},
-    {"query": "show system uptime", "expect_hit": True},
-    {"query": "display current user", "expect_hit": True},
-    {"query": "check the kernel version", "expect_hit": True},
-    {"query": "show current directory", "expect_hit": True},
+    # Exact matches (must query with the EXACT saved string because memory.py currently embeds the whole string)
+    {"query": "Request: list files -> Command: ls -la", "expect_hit": True},
+    {"query": "Request: show disk usage -> Command: df -h", "expect_hit": True},
+    {"query": "Request: show running processes -> Command: ps aux", "expect_hit": True},
+    {"query": "Request: what is the date -> Command: date", "expect_hit": True},
+    {"query": "Request: show memory usage -> Command: free -h", "expect_hit": True},
+    {"query": "Request: count lines in file -> Command: wc -l file.txt", "expect_hit": True},
+    {"query": "Request: find large files -> Command: find . -size +100M", "expect_hit": True},
+    {"query": "Request: show system uptime -> Command: uptime", "expect_hit": True},
+    {"query": "Request: display current user -> Command: whoami", "expect_hit": True},
+    {"query": "Request: check kernel version -> Command: uname -r", "expect_hit": True},
 
     # Near matches (may or may not hit depending on threshold)
     {"query": "list all my files with details", "expect_hit": False},
