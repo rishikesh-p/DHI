@@ -6,8 +6,8 @@ def test_memory_init_and_save(tmp_path, mocker):
     mock_embedder = mocker.patch("dhi.agent.memory.OllamaEmbeddings")
     mock_instance = mock_embedder.return_value
     
-    # Return a dummy vector based on text length to distinguish them slightly
-    mock_instance.embed_query.side_effect = lambda text: [float(len(text))] * 768
+    # Return a dummy vector with a 1.0 at an index based on text length to distinguish directions
+    mock_instance.embed_query.side_effect = lambda text: [1.0 if i == (len(text) % 768) else 0.0 for i in range(768)]
 
     db_dir = tmp_path / "lancedb"
     mem = MemorySystem(db_path=str(db_dir))
@@ -28,7 +28,7 @@ def test_memory_init_and_save(tmp_path, mocker):
 def test_memory_recall(tmp_path, mocker):
     mock_embedder = mocker.patch("dhi.agent.memory.OllamaEmbeddings")
     mock_instance = mock_embedder.return_value
-    mock_instance.embed_query.side_effect = lambda text: [float(len(text))] * 768
+    mock_instance.embed_query.side_effect = lambda text: [1.0 if i == (len(text) % 768) else 0.0 for i in range(768)]
 
     db_dir = tmp_path / "lancedb"
     mem = MemorySystem(db_path=str(db_dir))
@@ -47,7 +47,7 @@ def test_memory_recall_filters_init(tmp_path, mocker):
     """The __init__ seed record should never appear in results."""
     mock_embedder = mocker.patch("dhi.agent.memory.OllamaEmbeddings")
     mock_instance = mock_embedder.return_value
-    mock_instance.embed_query.side_effect = lambda text: [float(len(text))] * 768
+    mock_instance.embed_query.side_effect = lambda text: [1.0 if i == (len(text) % 768) else 0.0 for i in range(768)]
 
     db_dir = tmp_path / "lancedb"
     mem = MemorySystem(db_path=str(db_dir))
@@ -66,10 +66,13 @@ def test_memory_recall_empty_when_irrelevant(tmp_path, mocker):
     call_count = [0]
     def mock_embed(text):
         call_count[0] += 1
-        # Alternate between very different vectors
+        # Alternate between orthogonally different vectors (cosine distance 1.0)
+        vec = [0.0] * 768
         if "unrelated" in text:
-            return [100.0] * 768
-        return [float(len(text))] * 768
+            vec[0] = 1.0
+        else:
+            vec[1] = 1.0
+        return vec
     
     mock_instance.embed_query.side_effect = mock_embed
 

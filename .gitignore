@@ -8,3 +8,4 @@ __pycache__/
 aur-build/dhi/pkg/
 aur-build/dhi/src/
 *.egg-info/
+*.tar.gz

@@ -5,12 +5,13 @@ from langchain_ollama import OllamaEmbeddings
 from dhi.ui import console
 
 # Distance threshold — discard results less similar than this
-# LanceDB uses L2 distance by default: lower = more similar
-# ~1.0 is a reasonable cutoff for nomic-embed-text (768-dim, normalized)
-RELEVANCE_THRESHOLD = 1.0
+# We use Cosine Distance: 0 = identical, 1 = orthogonal, 2 = opposite
+# 0.5 cosine distance ≈ 0.5 cosine similarity — a reasonable relevance cutoff
+RELEVANCE_THRESHOLD = 0.5
 
 # If a near-duplicate exists within this distance, skip saving
-DEDUP_THRESHOLD = 0.3
+# 0.1 cosine distance ≈ 0.9 cosine similarity
+DEDUP_THRESHOLD = 0.1
 
 class MemorySystem:
     def __init__(self, db_path=None):
@@ -69,7 +70,7 @@ class MemorySystem:
         
         # 2. Deduplicate — check if a very similar entry already exists
         try:
-            existing = self.table.search(vector).limit(1).to_pandas()
+            existing = self.table.search(vector).distance_type("cosine").limit(1).to_pandas()
             if not existing.empty and existing.iloc[0]['_distance'] < DEDUP_THRESHOLD:
                 console.print(f"[muted]ℹ Skipping save — similar entry already exists.[/muted]")
                 return
@@ -97,7 +98,7 @@ class MemorySystem:
         query_vec = self.embedder.embed_query(query)
         
         # 2. Search DB
-        results = self.table.search(query_vec).limit(limit + 1).to_pandas()
+        results = self.table.search(query_vec).distance_type("cosine").limit(limit + 1).to_pandas()
         
         if results.empty:
             return ""
@@ -128,7 +129,7 @@ class MemorySystem:
         
         query_vec = self.embedder.embed_query(query)
         try:
-            results = self.table.search(query_vec).limit(2).to_pandas()
+            results = self.table.search(query_vec).distance_type("cosine").limit(2).to_pandas()
             for _, row in results.iterrows():
                 if row['text'] == "__init__": continue
                 if row['_distance'] < threshold:
