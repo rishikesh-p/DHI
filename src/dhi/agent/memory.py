@@ -33,7 +33,7 @@ class MemorySystem:
                 self.table = self.db.open_table("knowledge_base")
                 
                 # Verify schema backward compatibility
-                expected_columns = {"text", "vector", "timestamp", "success"}
+                expected_columns = {"intent", "command", "vector", "timestamp", "success"}
                 existing_columns = set(self.table.schema.names)
                 
                 if not expected_columns.issubset(existing_columns):
@@ -47,7 +47,8 @@ class MemorySystem:
                 console.print("[warning]⚠ Creating new knowledge base...[/warning]")
                 seed_vec = self.embedder.embed_query("__init__")
                 data = [{
-                    "text": "__init__",
+                    "intent": "__init__",
+                    "command": "__init__",
                     "vector": seed_vec,
                     "timestamp": time.time(),
                     "success": True
@@ -58,7 +59,7 @@ class MemorySystem:
             console.print(f"[error]⨯ Critical DB Error: {e}[/error]")
             self.table = None
 
-    def save(self, text, success=True):
+    def save(self, intent, command, success=True):
         """
         Store a text snippet in long-term memory.
         Skips saving if a near-duplicate already exists (deduplication).
@@ -66,7 +67,7 @@ class MemorySystem:
         if not self.table: return
         
         # 1. Convert text to vector
-        vector = self.embedder.embed_query(text)
+        vector = self.embedder.embed_query(intent)
         
         # 2. Deduplicate — check if a very similar entry already exists
         try:
@@ -79,7 +80,8 @@ class MemorySystem:
         
         # 3. Add to DB with metadata
         self.table.add([{
-            "text": text,
+            "intent": intent,
+            "command": command,
             "vector": vector,
             "timestamp": time.time(),
             "success": success
@@ -104,7 +106,7 @@ class MemorySystem:
             return ""
         
         # 3. Filter: remove seed record, apply relevance threshold
-        results = results[results['text'] != "__init__"]
+        results = results[results['intent'] != "__init__"]
         results = results[results['_distance'] < RELEVANCE_THRESHOLD]
         
         if results.empty:
@@ -114,7 +116,7 @@ class MemorySystem:
         results = results.head(limit)
         
         # 5. Format as context string
-        matches = results['text'].tolist()
+        matches = [f"Request: {row['intent']} -> Command: {row['command']}" for _, row in results.iterrows()]
         context = "\n".join(f"- {m}" for m in matches)
         
         console.print(f"[system]✦ Recalled {len(matches)} memory(s)[/system]")
@@ -131,12 +133,9 @@ class MemorySystem:
         try:
             results = self.table.search(query_vec).distance_type("cosine").limit(2).to_pandas()
             for _, row in results.iterrows():
-                if row['text'] == "__init__": continue
+                if row['intent'] == "__init__": continue
                 if row['_distance'] < threshold:
-                    full_text = row['text']
-                    if " -> Command: " in full_text:
-                        cmd = full_text.split(" -> Command: ", 1)[1]
-                        return cmd
+                    return row['command']
             return None
         except Exception:
             return None
@@ -147,12 +146,12 @@ if __name__ == "__main__":
     
     # Test 1: Teach it something
     print("\n--- Teaching ---")
-    mem.save("Request: list files -> Command: ls -la")
-    mem.save("Request: show disk usage -> Command: df -h")
+    mem.save("list files", "ls -la")
+    mem.save("show disk usage", "df -h")
     
     # Test 2: Try saving a duplicate
     print("\n--- Duplicate ---")
-    mem.save("Request: list files -> Command: ls -la")  # Should skip
+    mem.save("list files", "ls -la")  # Should skip
     
     # Test 3: Ask it something
     print("\n--- Asking ---")

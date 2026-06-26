@@ -243,7 +243,7 @@ def node_executor(state: AgentState):
 
     output = exec_result["output"]
     if state.get("input_text"):
-        get_memory().save(f"Request: {state['input_text']} -> Command: {cmd}")
+        get_memory().save(state['input_text'], cmd)
     
     return {"command_output": output, "error": None}
 

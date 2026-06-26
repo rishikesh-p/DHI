@@ -27,41 +27,41 @@ from dhi.agent.memory import MemorySystem
 # --- Seed Data ---
 # 20 realistic intent→command pairs to populate the cache
 SEED_ENTRIES = [
-    "Request: list files -> Command: ls -la",
-    "Request: show disk usage -> Command: df -h",
-    "Request: show running processes -> Command: ps aux",
-    "Request: what is the date -> Command: date",
-    "Request: show memory usage -> Command: free -h",
-    "Request: count lines in file -> Command: wc -l file.txt",
-    "Request: find large files -> Command: find . -size +100M",
-    "Request: show system uptime -> Command: uptime",
-    "Request: display current user -> Command: whoami",
-    "Request: check kernel version -> Command: uname -r",
-    "Request: show current directory -> Command: pwd",
-    "Request: show environment variables -> Command: env",
-    "Request: display file contents -> Command: cat file.txt",
-    "Request: search for text in files -> Command: grep -r 'text' .",
-    "Request: show network interfaces -> Command: ip addr",
-    "Request: kill a process -> Command: kill -9 1234",
-    "Request: create a directory -> Command: mkdir new_folder",
-    "Request: rename a file -> Command: mv old.txt new.txt",
-    "Request: show last 10 lines of log -> Command: tail -10 app.log",
-    "Request: sort file contents -> Command: sort data.txt",
+    {"intent": "list files", "command": "ls -la"},
+    {"intent": "show disk usage", "command": "df -h"},
+    {"intent": "show running processes", "command": "ps aux"},
+    {"intent": "what is the date", "command": "date"},
+    {"intent": "show memory usage", "command": "free -h"},
+    {"intent": "count lines in file", "command": "wc -l file.txt"},
+    {"intent": "find large files", "command": "find . -size +100M"},
+    {"intent": "show system uptime", "command": "uptime"},
+    {"intent": "display current user", "command": "whoami"},
+    {"intent": "check kernel version", "command": "uname -r"},
+    {"intent": "show current directory", "command": "pwd"},
+    {"intent": "show environment variables", "command": "env"},
+    {"intent": "display file contents", "command": "cat file.txt"},
+    {"intent": "search for text in files", "command": "grep -r 'text' ."},
+    {"intent": "show network interfaces", "command": "ip addr"},
+    {"intent": "kill a process", "command": "kill -9 1234"},
+    {"intent": "create a directory", "command": "mkdir new_folder"},
+    {"intent": "rename a file", "command": "mv old.txt new.txt"},
+    {"intent": "show last 10 lines of log", "command": "tail -10 app.log"},
+    {"intent": "sort file contents", "command": "sort data.txt"},
 ]
 
 # Queries to test — mix of exact matches, near matches, and misses
 TEST_QUERIES = [
-    # Exact matches (must query with the EXACT saved string because memory.py currently embeds the whole string)
-    {"query": "Request: list files -> Command: ls -la", "expect_hit": True},
-    {"query": "Request: show disk usage -> Command: df -h", "expect_hit": True},
-    {"query": "Request: show running processes -> Command: ps aux", "expect_hit": True},
-    {"query": "Request: what is the date -> Command: date", "expect_hit": True},
-    {"query": "Request: show memory usage -> Command: free -h", "expect_hit": True},
-    {"query": "Request: count lines in file -> Command: wc -l file.txt", "expect_hit": True},
-    {"query": "Request: find large files -> Command: find . -size +100M", "expect_hit": True},
-    {"query": "Request: show system uptime -> Command: uptime", "expect_hit": True},
-    {"query": "Request: display current user -> Command: whoami", "expect_hit": True},
-    {"query": "Request: check kernel version -> Command: uname -r", "expect_hit": True},
+    # Near-exact matches (should hit cache with distance < 0.05)
+    {"query": "list files", "expect_hit": True},
+    {"query": "show disk usage", "expect_hit": True},
+    {"query": "show running processes", "expect_hit": True},
+    {"query": "what is today's date", "expect_hit": True},
+    {"query": "show memory usage", "expect_hit": True},
+    {"query": "count lines in a file", "expect_hit": True},
+    {"query": "show system uptime", "expect_hit": True},
+    {"query": "display current user", "expect_hit": True},
+    {"query": "check the kernel version", "expect_hit": True},
+    {"query": "show current directory", "expect_hit": True},
 
     # Near matches (may or may not hit depending on threshold)
     {"query": "list all my files with details", "expect_hit": False},
@@ -95,7 +95,7 @@ def run_cache_benchmark():
         # Seed the database
         print(f"[*] Seeding {len(SEED_ENTRIES)} entries...")
         for entry in SEED_ENTRIES:
-            memory.save(entry)
+            memory.save(entry["intent"], entry["command"])
         print("[*] Seeding complete.\n")
 
         # --- Benchmark: exact_match latency ---
