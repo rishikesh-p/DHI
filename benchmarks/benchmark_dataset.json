@@ -1,0 +1,431 @@
+{
+  "metadata": {
+    "description": "DHI Held-Out Benchmark Dataset — IEEE Paper Section V",
+    "version": "1.0",
+    "total_intents": 60,
+    "tier_distribution": {"tier_1": 20, "tier_2": 15, "tier_3": 25},
+    "notes": "No intent in this dataset appears in the router's anchor sets (router.py lines 21-92). This ensures the benchmark measures generalization, not memorization."
+  },
+  "intents": [
+    {
+      "id": "T1-01",
+      "intent": "show how much RAM is being used right now",
+      "expected_route": "local",
+      "expected_command_patterns": ["free", "/proc/meminfo", "vmstat"],
+      "tier": 1
+    },
+    {
+      "id": "T1-02",
+      "intent": "what time is it",
+      "expected_route": "local",
+      "expected_command_patterns": ["date", "timedatectl"],
+      "tier": 1
+    },
+    {
+      "id": "T1-03",
+      "intent": "how many files are in this folder",
+      "expected_route": "local",
+      "expected_command_patterns": ["ls", "find", "wc"],
+      "tier": 1
+    },
+    {
+      "id": "T1-04",
+      "intent": "show the size of the current directory",
+      "expected_route": "local",
+      "expected_command_patterns": ["du"],
+      "tier": 1
+    },
+    {
+      "id": "T1-05",
+      "intent": "who is currently logged in to this machine",
+      "expected_route": "local",
+      "expected_command_patterns": ["who", "w", "users"],
+      "tier": 1
+    },
+    {
+      "id": "T1-06",
+      "intent": "what shell am I using",
+      "expected_route": "local",
+      "expected_command_patterns": ["SHELL", "echo", "ps"],
+      "tier": 1
+    },
+    {
+      "id": "T1-07",
+      "intent": "clear the terminal screen",
+      "expected_route": "local",
+      "expected_command_patterns": ["clear", "reset", "tput"],
+      "tier": 1
+    },
+    {
+      "id": "T1-08",
+      "intent": "show the first 20 lines of readme.md",
+      "expected_route": "local",
+      "expected_command_patterns": ["head"],
+      "tier": 1
+    },
+    {
+      "id": "T1-09",
+      "intent": "sort this file alphabetically",
+      "expected_route": "local",
+      "expected_command_patterns": ["sort"],
+      "tier": 1
+    },
+    {
+      "id": "T1-10",
+      "intent": "find all .txt files in the current folder",
+      "expected_route": "local",
+      "expected_command_patterns": ["find", "ls", "*.txt"],
+      "tier": 1
+    },
+    {
+      "id": "T1-11",
+      "intent": "what is my hostname",
+      "expected_route": "local",
+      "expected_command_patterns": ["hostname", "hostnamectl", "uname"],
+      "tier": 1
+    },
+    {
+      "id": "T1-12",
+      "intent": "show the largest files in this directory",
+      "expected_route": "local",
+      "expected_command_patterns": ["du", "ls", "sort"],
+      "tier": 1
+    },
+    {
+      "id": "T1-13",
+      "intent": "count how many words are in notes.txt",
+      "expected_route": "local",
+      "expected_command_patterns": ["wc"],
+      "tier": 1
+    },
+    {
+      "id": "T1-14",
+      "intent": "print the PATH variable",
+      "expected_route": "local",
+      "expected_command_patterns": ["echo", "PATH", "printenv"],
+      "tier": 1
+    },
+    {
+      "id": "T1-15",
+      "intent": "check if python is installed",
+      "expected_route": "local",
+      "expected_command_patterns": ["which", "python", "command -v", "--version"],
+      "tier": 1
+    },
+    {
+      "id": "T1-16",
+      "intent": "show the last 5 commands I ran",
+      "expected_route": "local",
+      "expected_command_patterns": ["history", "fc"],
+      "tier": 1
+    },
+    {
+      "id": "T1-17",
+      "intent": "make a file called notes.md",
+      "expected_route": "local",
+      "expected_command_patterns": ["touch", "notes.md", "> notes"],
+      "tier": 1
+    },
+    {
+      "id": "T1-18",
+      "intent": "display the calendar for this month",
+      "expected_route": "local",
+      "expected_command_patterns": ["cal"],
+      "tier": 1
+    },
+    {
+      "id": "T1-19",
+      "intent": "calculate 256 times 48",
+      "expected_route": "local",
+      "expected_command_patterns": ["echo", "bc", "expr", "256"],
+      "tier": 1
+    },
+    {
+      "id": "T1-20",
+      "intent": "show hidden files in this directory",
+      "expected_route": "local",
+      "expected_command_patterns": ["ls", "-a", "dotfiles"],
+      "tier": 1
+    },
+    {
+      "id": "T2-01",
+      "intent": "download this pdf from https://example.com/report.pdf",
+      "expected_route": "local",
+      "expected_command_patterns": ["curl", "wget"],
+      "tier": 2
+    },
+    {
+      "id": "T2-02",
+      "intent": "check if google.com is reachable right now",
+      "expected_route": "local",
+      "expected_command_patterns": ["ping", "curl"],
+      "tier": 2
+    },
+    {
+      "id": "T2-03",
+      "intent": "clone the linux kernel repo from github",
+      "expected_route": "local",
+      "expected_command_patterns": ["git", "clone"],
+      "tier": 2
+    },
+    {
+      "id": "T2-04",
+      "intent": "fetch the HTTP headers of https://example.org",
+      "expected_route": "local",
+      "expected_command_patterns": ["curl", "-I", "head"],
+      "tier": 2
+    },
+    {
+      "id": "T2-05",
+      "intent": "check my public ip address using an external service",
+      "expected_route": "local",
+      "expected_command_patterns": ["curl", "ifconfig", "ip"],
+      "tier": 2
+    },
+    {
+      "id": "T2-06",
+      "intent": "pull the latest changes from the git remote",
+      "expected_route": "local",
+      "expected_command_patterns": ["git", "pull"],
+      "tier": 2
+    },
+    {
+      "id": "T2-07",
+      "intent": "send a GET request to the API endpoint at localhost:8080",
+      "expected_route": "local",
+      "expected_command_patterns": ["curl", "wget", "http"],
+      "tier": 2
+    },
+    {
+      "id": "T2-08",
+      "intent": "download a file and save it as output.zip",
+      "expected_route": "local",
+      "expected_command_patterns": ["curl", "wget", "-o", "output.zip"],
+      "tier": 2
+    },
+    {
+      "id": "T2-09",
+      "intent": "check the DNS records for archlinux.org",
+      "expected_route": "local",
+      "expected_command_patterns": ["dig", "nslookup", "host"],
+      "tier": 2
+    },
+    {
+      "id": "T2-10",
+      "intent": "sync my local git repo with the remote origin",
+      "expected_route": "local",
+      "expected_command_patterns": ["git", "fetch", "pull"],
+      "tier": 2
+    },
+    {
+      "id": "T2-11",
+      "intent": "download the webpage source of example.com and save it",
+      "expected_route": "local",
+      "expected_command_patterns": ["curl", "wget"],
+      "tier": 2
+    },
+    {
+      "id": "T2-12",
+      "intent": "test if the remote server is responding on port 8080",
+      "expected_route": "local",
+      "expected_command_patterns": ["curl", "nc", "nmap", "8080"],
+      "tier": 2
+    },
+    {
+      "id": "T2-13",
+      "intent": "upload a file to my server using scp",
+      "expected_route": "local",
+      "expected_command_patterns": ["scp", "rsync"],
+      "tier": 2
+    },
+    {
+      "id": "T2-14",
+      "intent": "check the SSL certificate expiry of a domain",
+      "expected_route": "local",
+      "expected_command_patterns": ["openssl", "curl", "ssl"],
+      "tier": 2
+    },
+    {
+      "id": "T2-15",
+      "intent": "fetch the latest weather data from wttr.in",
+      "expected_route": "local",
+      "expected_command_patterns": ["curl", "wget", "wttr"],
+      "tier": 2
+    },
+    {
+      "id": "T3-01",
+      "intent": "write a python script that renames all files in a folder to lowercase",
+      "expected_route": "cloud",
+      "expected_command_patterns": ["python", "os.", "rename", "lower"],
+      "tier": 3
+    },
+    {
+      "id": "T3-02",
+      "intent": "create a bash script that watches a directory for new files and logs every change",
+      "expected_route": "cloud",
+      "expected_command_patterns": ["inotifywait", "while", "log"],
+      "tier": 3
+    },
+    {
+      "id": "T3-03",
+      "intent": "generate a markdown report of my git commit history for the past week",
+      "expected_route": "cloud",
+      "expected_command_patterns": ["git", "log", "since", "markdown", "md"],
+      "tier": 3
+    },
+    {
+      "id": "T3-04",
+      "intent": "build an automated backup script with rotation and compression",
+      "expected_route": "cloud",
+      "expected_command_patterns": ["tar", "gz", "backup", "rotate", "date"],
+      "tier": 3
+    },
+    {
+      "id": "T3-05",
+      "intent": "write a systemd timer that runs a cleanup script every week",
+      "expected_route": "cloud",
+      "expected_command_patterns": ["systemd", "timer", "OnCalendar", "weekly"],
+      "tier": 3
+    },
+    {
+      "id": "T3-06",
+      "intent": "create a REST API mock server using python http.server",
+      "expected_route": "cloud",
+      "expected_command_patterns": ["python", "http", "server", "import"],
+      "tier": 3
+    },
+    {
+      "id": "T3-07",
+      "intent": "analyze this log file and show the top 10 most frequent error messages",
+      "expected_route": "cloud",
+      "expected_command_patterns": ["awk", "sort", "uniq", "head", "grep"],
+      "tier": 3
+    },
+    {
+      "id": "T3-08",
+      "intent": "write a script to monitor CPU temperature and alert if it goes above 80 degrees",
+      "expected_route": "cloud",
+      "expected_command_patterns": ["temp", "sensors", "thermal", "while", "80"],
+      "tier": 3
+    },
+    {
+      "id": "T3-09",
+      "intent": "generate a CSV report of all running processes sorted by memory consumption",
+      "expected_route": "cloud",
+      "expected_command_patterns": ["ps", "csv", "sort", "mem", "awk"],
+      "tier": 3
+    },
+    {
+      "id": "T3-10",
+      "intent": "create a git pre-commit hook that validates python syntax before committing",
+      "expected_route": "cloud",
+      "expected_command_patterns": ["pre-commit", "hook", "python", "syntax"],
+      "tier": 3
+    },
+    {
+      "id": "T3-11",
+      "intent": "build a simple chat server using python sockets",
+      "expected_route": "cloud",
+      "expected_command_patterns": ["socket", "import", "bind", "listen"],
+      "tier": 3
+    },
+    {
+      "id": "T3-12",
+      "intent": "write a script that converts all images in a folder to webp format",
+      "expected_route": "cloud",
+      "expected_command_patterns": ["convert", "cwebp", "webp", "for", "find"],
+      "tier": 3
+    },
+    {
+      "id": "T3-13",
+      "intent": "set up a local development environment with multiple tmux panes",
+      "expected_route": "cloud",
+      "expected_command_patterns": ["tmux", "split", "pane", "session"],
+      "tier": 3
+    },
+    {
+      "id": "T3-14",
+      "intent": "create an HTML page that displays live system stats using javascript",
+      "expected_route": "cloud",
+      "expected_command_patterns": ["html", "script", "function", "body"],
+      "tier": 3
+    },
+    {
+      "id": "T3-15",
+      "intent": "write a bash function that safely removes files with a confirmation prompt",
+      "expected_route": "cloud",
+      "expected_command_patterns": ["function", "read", "rm", "confirm"],
+      "tier": 3
+    },
+    {
+      "id": "T3-16",
+      "intent": "build a file synchronization script between two directories using rsync",
+      "expected_route": "cloud",
+      "expected_command_patterns": ["rsync", "sync", "compare"],
+      "tier": 3
+    },
+    {
+      "id": "T3-17",
+      "intent": "generate python docstrings for all functions in a project automatically",
+      "expected_route": "cloud",
+      "expected_command_patterns": ["python", "def", "docstring", "ast"],
+      "tier": 3
+    },
+    {
+      "id": "T3-18",
+      "intent": "write a network scanner that discovers all devices on the local subnet",
+      "expected_route": "cloud",
+      "expected_command_patterns": ["nmap", "arp", "ping", "subnet", "scan"],
+      "tier": 3
+    },
+    {
+      "id": "T3-19",
+      "intent": "create a script that monitors website uptime and logs the results",
+      "expected_route": "cloud",
+      "expected_command_patterns": ["curl", "while", "log", "status", "200"],
+      "tier": 3
+    },
+    {
+      "id": "T3-20",
+      "intent": "build a command-line todo list app in python with add and remove commands",
+      "expected_route": "cloud",
+      "expected_command_patterns": ["python", "argparse", "json", "add", "remove"],
+      "tier": 3
+    },
+    {
+      "id": "T3-21",
+      "intent": "write a log rotation script with configurable retention period",
+      "expected_route": "cloud",
+      "expected_command_patterns": ["rotate", "log", "find", "mtime", "delete"],
+      "tier": 3
+    },
+    {
+      "id": "T3-22",
+      "intent": "create a docker compose file for a wordpress installation with mysql",
+      "expected_route": "cloud",
+      "expected_command_patterns": ["docker", "compose", "wordpress", "mysql", "yaml"],
+      "tier": 3
+    },
+    {
+      "id": "T3-23",
+      "intent": "write a script that generates a system performance report with graphs",
+      "expected_route": "cloud",
+      "expected_command_patterns": ["cpu", "mem", "report", "html", "plot"],
+      "tier": 3
+    },
+    {
+      "id": "T3-24",
+      "intent": "build an interactive bash menu system for managing server tasks",
+      "expected_route": "cloud",
+      "expected_command_patterns": ["select", "case", "menu", "read", "while"],
+      "tier": 3
+    },
+    {
+      "id": "T3-25",
+      "intent": "write a python script that extracts metadata from all pdf files in a folder",
+      "expected_route": "cloud",
+      "expected_command_patterns": ["python", "pdf", "metadata", "import"],
+      "tier": 3
+    }
+  ]
+}
