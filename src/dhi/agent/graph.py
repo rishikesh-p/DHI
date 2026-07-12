@@ -14,9 +14,9 @@ from dhi.agent.memory import MemorySystem
 from dhi.agent.router import Router
 from dhi.config import load_config
 
-# --- System Prompts ---
-# These go into the system role where LLMs give them the most weight.
-# Local prompt is deliberately shorter to fit small context windows (2048 tokens).
+# System Prompts
+# Define behavior for the LLMs.
+# The local prompt is kept short for small context windows (2048 tokens).
 
 LOCAL_SYSTEM_PROMPT = """You are DHI, a terminal execution engine on Arch Linux inside a Bubblewrap sandbox.
 
@@ -55,13 +55,21 @@ Example — User: "explain what cron does"
 echo "cron is a time-based job scheduler in Unix. You define scheduled tasks in a crontab file using the format: minute hour day month weekday command."
 ```"""
 
-# Initialize Tools (Lazy Loaded)
+# Lazy-loaded tools
 _router = None
 _executor = None
 _memory = None
+_cached_config = None
 
 local_brain = None
 cloud_brain = None
+
+def get_config():
+    """Return the cached config, loading from disk on first call."""
+    global _cached_config
+    if _cached_config is None:
+        _cached_config = load_config()
+    return _cached_config
 
 def get_router():
     global _router
@@ -94,15 +102,16 @@ def get_cloud_brain():
     return _cloud_brain
 
 def reload_agent():
-    """Dynamically clears the AI Brain cache to force reload on next query."""
-    global _local_brain, _cloud_brain
+    """Clear the AI Brain and config caches to force reload on next query."""
+    global _local_brain, _cloud_brain, _cached_config
     _local_brain = None
     _cloud_brain = None
+    _cached_config = None
 
 def parse_llm_output(response: str):
     """Extract executable code from LLM response.
-    Only accepts properly fenced code blocks (```bash ... ```).
-    Returns None if no code block is found — this triggers a retry."""
+    Only accept properly fenced code blocks (```bash ... ```).
+    Return None if no code block is found to trigger a retry."""
     if not response or not response.strip():
         return None
         
@@ -110,18 +119,18 @@ def parse_llm_output(response: str):
     if code_block:
         return code_block.group(1).strip()
 
-    # No code block found. Do NOT fall back to executing raw text.
-    # The LLM failed to follow the format — let the retry loop handle it.
+    # Do not execute raw text if no code block is found.
+    # Allow the retry loop to handle the format failure.
     return None
 
 def node_router(state: AgentState):
-    # 1. Check for Exact Semantic Match (Short-circuit the LLM)
+    # Check for exact semantic match to bypass LLM
     cached_cmd = get_memory().exact_match(state['input_text'])
     if cached_cmd:
         console.print(f"[success]⚡ Semantic Cache Hit! Bypassing reasoning engine.[/success]")
         return {"plan": "executor", "command": cached_cmd, "route_confidence": 1.0}
 
-    # 2. Run normal mathematical routing
+    # Run mathematical routing
     result = get_router().route(state['input_text'])
     decision = result["route"]
     confidence = result["confidence"]
@@ -129,8 +138,8 @@ def node_router(state: AgentState):
     return {"plan": decision, "route_confidence": confidence}
 
 def _build_user_prompt(state: AgentState, history_str: str) -> str:
-    """Build the user-message prompt. User intent comes first (highest attention),
-    then optional context, then error feedback at the end (recency bias)."""
+    """Build the user-message prompt.
+    Order components by attention priority: user intent, context, and error feedback."""
     parts = [f"Task: {state['input_text']}"]
 
     # Add vector DB context if available
@@ -142,17 +151,17 @@ def _build_user_prompt(state: AgentState, history_str: str) -> str:
     if history_str:
         parts.append(f"Recent history:\n{history_str}")
 
-    # Error feedback goes last — recency bias makes the LLM focus on fixing it
+    # Append error feedback last to leverage recency bias.
     if state.get('error'):
         parts.append(f"ERROR FROM LAST ATTEMPT — fix this:\n{state['error']}")
 
     return "\n\n".join(parts)
 
 def node_local_reasoner(state: AgentState):
-    config = load_config()
+    config = get_config()
 
     if config.get("stateful_local", False):
-        # Truncate each message to 500 chars to prevent 4B context window collapse
+        # Truncate each message to 500 chars to prevent small context window collapse.
         history_str = "\n".join([f"{msg.type}: {msg.content[:500] + '...' if len(msg.content) > 500 else msg.content}" for msg in state.get('messages', [])[-5:]])
     else:
         history_str = ""
@@ -209,11 +218,10 @@ def node_executor(state: AgentState):
         console.print(f"[error]⨯ {error_msg}[/error]")
         return {"command_output": "", "error": error_msg, "retry_count": state["retry_count"] + 1}
 
-    # Human-in-the-Loop Confirmation
-    config = load_config()
+    # Request human-in-the-loop confirmation.
+    config = get_config()
     if config.get("require_confirmation", True):
-        # Scan the ENTIRE command for dangerous programs — not just the start.
-        # This catches: echo foo && rm -rf /, pipes, subshells, etc.
+        # Scan the entire command for dangerous programs (e.g., in pipes or subshells).
         dangerous_patterns = [
             r'\brm\b', r'\bmv\b', r'\bdd\b', r'\bmkfs\b',
             r'\bchmod\b', r'\bchown\b', r'\bkillall\b', r'\bpkill\b',
@@ -228,8 +236,8 @@ def node_executor(state: AgentState):
 
     console.print(f"[info]🚀 Executing: {escape(cmd)}[/info]")
     
-    # 1. Determine Network Requirement
-    # Default to Zero-Trust (No Internet) unless explicitly asked
+    # Determine network requirement.
+    # Default to Zero-Trust (no Internet) unless explicitly requested.
     network_keywords = ['curl', 'wget', 'download', 'git', 'http', 'https', 'api', 'ping', 'ssh']
     requires_network = any(word in state.get('input_text', '').lower() for word in network_keywords)
     
@@ -259,7 +267,7 @@ def should_continue(state: AgentState):
                 return "retry_cloud"
             return "end"
         else:
-            # Low-confidence local routes get fewer retries before fallback offer
+            # Offer fallback sooner for low-confidence local routes.
             local_retry_limit = 2 if confidence < 0.5 else 3
 
             if state['retry_count'] < local_retry_limit:

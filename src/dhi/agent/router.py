@@ -3,23 +3,22 @@ import numpy as np
 from langchain_ollama import OllamaEmbeddings
 from dhi.ui import console
 
-# XDG-compliant cache path
+# Set XDG-compliant cache path.
 CACHE_DIR = os.path.expanduser("~/.cache/dhi")
 COMPLEX_CACHE = os.path.join(CACHE_DIR, "anchors_complex.npy")
 SIMPLE_CACHE = os.path.join(CACHE_DIR, "anchors_simple.npy")
 CACHE_VERSION_FILE = os.path.join(CACHE_DIR, "anchors.version")
 
-# Bump this when anchors change — forces a re-embed
+# Version counter to force re-embed when anchors change.
 ANCHOR_VERSION = "3"
 
 class Router:
     def __init__(self):
         self.embedder = OllamaEmbeddings(model="nomic-embed-text")
 
-        # --- Expanded Anchor Sets ---
-        # Canonical "complex" tasks (multi-step, piping, scripting, conversion)
+        # Define complex anchors for multi-step tasks, piping, and scripting.
         self.complex_anchors = [
-            # Software Engineering & Scripting
+            # Software engineering and scripting
             "write a python script to scrape a website",
             "refactor this entire codebase",
             "create a complex regex pattern for emails",
@@ -27,13 +26,13 @@ class Router:
             "create a virtual environment and install dependencies from requirements",
             "write a makefile for this c project",
             
-            # Web Development & Frontend
+            # Web development and frontend
             "generate a complex html webpage with javascript and css",
             "build a responsive react application dashboard",
             "write a full stack web application with a nodejs backend",
             "create a beautiful ui component with tailwind css",
             
-            # Advanced Data & Document Processing
+            # Advanced data and document processing
             "parse this json file and extract all email addresses",
             "use awk to process this csv and calculate column averages",
             "read this large text file and summarize the key points",
@@ -41,13 +40,13 @@ class Router:
             "build a static site from markdown files using pandoc",
             "merge multiple pdf files into one document",
             
-            # Media & Networking
+            # Media and networking
             "convert this video to mp4 using ffmpeg",
             "transcode audio files from flac to opus using ffmpeg",
             "download all images from a webpage using curl and grep",
             "set up an ssh tunnel to forward a remote port",
             
-            # Advanced System Administration
+            # Advanced system administration
             "setup a docker container with nginx",
             "set up a cron job to backup my database every night",
             "create a systemd service file for my application",
@@ -57,9 +56,9 @@ class Router:
             "manipulate windows in hyprland",
         ]
 
-        # Canonical "simple" tasks (single command, direct output)
+        # Define simple anchors for single command execution.
         self.simple_anchors = [
-            # Basic File Operations
+            # Basic file operations
             "create a file called test.txt",
             "list all files in this directory",
             "make a new folder",
@@ -69,7 +68,7 @@ class Router:
             "search for a file by name",
             "display the last 10 lines of a log file",
             
-            # System Information
+            # System information
             "what is the current date",
             "tell me my ip address",
             "show me running processes",
@@ -81,7 +80,7 @@ class Router:
             "show system uptime",
             "display the current user",
             
-            # Basic Networking & Hardware Control
+            # Basic networking and hardware control
             "check if a port is open",
             "ping a server",
             "print hello world",
@@ -91,8 +90,8 @@ class Router:
             "increase screen brightness",
         ]
 
-        # Load or compute embeddings
-        self.complex_embeddings = self._load_or_compute()
+        # Load or compute embeddings as Numpy matrices.
+        self._load_or_compute()
 
     def _cache_is_valid(self):
         """Check if cached embeddings exist and match the current anchor version."""
@@ -105,57 +104,50 @@ class Router:
             return False
 
     def _load_or_compute(self):
-        """Load cached anchor embeddings from disk, or compute and cache them."""
+        """Load cached anchor embeddings from disk, or compute and cache them.
+
+        Store embeddings as normalized 2D Numpy arrays for vectorized scoring.
+        """
         if self._cache_is_valid():
             console.print("[muted]ℹ Loading cached semantic anchors...[/muted]")
-            self.complex_embeddings = np.load(COMPLEX_CACHE).tolist()
-            self.simple_embeddings = np.load(SIMPLE_CACHE).tolist()
-            return self.complex_embeddings
+            self.complex_embeddings = np.load(COMPLEX_CACHE)
+            self.simple_embeddings = np.load(SIMPLE_CACHE)
+        else:
+            console.print("[info]ℹ Computing semantic anchors (first run or anchors updated)...[/info]")
+            self.complex_embeddings = np.array(self.embedder.embed_documents(self.complex_anchors))
+            self.simple_embeddings = np.array(self.embedder.embed_documents(self.simple_anchors))
 
-        console.print("[info]ℹ Computing semantic anchors (first run or anchors updated)...[/info]")
-        self.complex_embeddings = self.embedder.embed_documents(self.complex_anchors)
-        self.simple_embeddings = self.embedder.embed_documents(self.simple_anchors)
+            # Cache embeddings to disk.
+            os.makedirs(CACHE_DIR, exist_ok=True)
+            np.save(COMPLEX_CACHE, self.complex_embeddings)
+            np.save(SIMPLE_CACHE, self.simple_embeddings)
+            with open(CACHE_VERSION_FILE, 'w') as f:
+                f.write(ANCHOR_VERSION)
+            console.print("[success]✓ Anchors cached to disk.[/success]")
 
-        # Cache to disk
-        os.makedirs(CACHE_DIR, exist_ok=True)
-        np.save(COMPLEX_CACHE, np.array(self.complex_embeddings))
-        np.save(SIMPLE_CACHE, np.array(self.simple_embeddings))
-        with open(CACHE_VERSION_FILE, 'w') as f:
-            f.write(ANCHOR_VERSION)
-
-        console.print("[success]✓ Anchors cached to disk.[/success]")
-        return self.complex_embeddings
-
-    def _cosine_similarity(self, a, b):
-        a, b = np.array(a), np.array(b)
-        return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+        # Pre-normalize rows for fast cosine similarity via dot product.
+        self._complex_normed = self.complex_embeddings / np.linalg.norm(self.complex_embeddings, axis=1, keepdims=True)
+        self._simple_normed = self.simple_embeddings / np.linalg.norm(self.simple_embeddings, axis=1, keepdims=True)
 
     def route(self, input_text: str) -> dict:
-        """Scores the input and returns a route with confidence.
+        """Score the input and return a route with confidence.
 
         Returns:
-            dict with keys:
-                route: "local" or "cloud"
-                confidence: float 0.0 - 1.0 (how sure the router is)
+            dict: Route ('local' or 'cloud') and confidence score (0.0 to 1.0).
         """
 
-        # 1. Embed the user input
-        input_emb = self.embedder.embed_query(input_text)
+        # Embed the user input and normalize.
+        input_emb = np.array(self.embedder.embed_query(input_text))
+        input_normed = input_emb / np.linalg.norm(input_emb)
 
-        # 2. Score against both anchor sets
-        complex_scores = sorted(
-            [self._cosine_similarity(input_emb, anchor) for anchor in self.complex_embeddings],
-            reverse=True
-        )
-        simple_scores = sorted(
-            [self._cosine_similarity(input_emb, anchor) for anchor in self.simple_embeddings],
-            reverse=True
-        )
+        # Vectorized cosine similarity via matrix-vector dot product.
+        complex_scores = self._complex_normed @ input_normed
+        simple_scores = self._simple_normed @ input_normed
 
-        # 3. Top-K mean (K=3) — more robust than single-max
+        # Calculate Top-K mean to improve robustness.
         k = 3
-        complex_score = float(np.mean(complex_scores[:k]))
-        simple_score = float(np.mean(simple_scores[:k]))
+        complex_score = float(np.sort(complex_scores)[-k:].mean())
+        simple_score = float(np.sort(simple_scores)[-k:].mean())
 
         console.print(
             f"[muted]ℹ Semantic Match -> Complex: {complex_score:.3f} "
@@ -163,8 +155,8 @@ class Router:
             f"(top: {simple_scores[0]:.3f})[/muted]"
         )
 
-        # 4. Margin-based decision
-        #    Route to cloud only if complex wins by a clear margin
+        # Make a margin-based decision.
+        # Route to cloud only if complex wins by the specified margin.
         margin = complex_score - simple_score
         margin_threshold = 0.03  # Must win by at least this much
 

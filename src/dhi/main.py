@@ -76,12 +76,12 @@ def settings_menu():
     config["require_confirmation"] = require_conf
     save_config(config)
     
-    # Reload the agent with the new config dynamically
+    # Reload agent to apply configuration changes
     reload_agent()
     console.print("[success]Settings Saved & Agent Reloaded![/success]")
 
 def execute_graph(app, config, user_input):
-    """Runs the graph for a given user input and prints the output."""
+    """Run the graph for a given user input and print the output."""
     console.print(Rule(style="info"))
     
     new_inputs = {
@@ -102,27 +102,25 @@ def execute_graph(app, config, user_input):
 def main():
     console.print(Panel("[bold cyan]DHI: Hybrid OS Agent[/bold cyan]", expand=False, border_style="cyan"))
     
-    # Initialize the LLMs
     reload_agent()
     
     startup_checks()
     
-    # Setup XDG paths
     data_dir = os.path.expanduser("~/.local/share/dhi")
     os.makedirs(data_dir, exist_ok=True)
     db_path = os.path.join(data_dir, "pragma_state.db")
     
-    # Initialize Storage & Memory for persistent sessions
+    # Initialize storage and memory for persistent sessions
     conn = sqlite3.connect(db_path, check_same_thread=False)
     memory = SqliteSaver(conn)
     
-    # Compile the Graph WITH the Checkpointer attached
+    # Compile the graph with the checkpointer attached
     app = workflow.compile(checkpointer=memory)
 
     # Define the Workspace Session
     config = {"configurable": {"thread_id": "main_workspace"}}
 
-    # ONE-SHOT CLI MODE
+    # One-shot CLI mode
     if len(sys.argv) > 1:
         user_input = " ".join(sys.argv[1:])
         try:
@@ -131,7 +129,8 @@ def main():
             conn.close()
         return
 
-    # INTERACTIVE REPL MODE
+    # Interactive REPL mode
+    ear = None  # Lazily initialized on first voice use.
     try:
         while True:
             console.print()
@@ -148,15 +147,11 @@ def main():
                 continue
                 
             elif mode == 'v':
-                console.print("[system]Loading Whisper Model...[/system]")
-                ear = Ear(model_size="distil-small.en")
-                    
+                if ear is None:
+                    console.print("[system]Loading Whisper Model...[/system]")
+                    ear = Ear(model_size="distil-small.en")
+                     
                 user_input = ear.listen_and_transcribe()
-                
-                # Unload Whisper immediately to free VRAM
-                del ear
-                import gc
-                gc.collect()
                 
                 if not user_input:
                     continue
