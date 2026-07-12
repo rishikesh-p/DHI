@@ -2,10 +2,10 @@
 """
 DHI Benchmark: Semantic Routing Accuracy
 =========================================
-Measures: The 96.5% number in the paper (Routing Accuracy).
+Measure the routing accuracy.
 
-Loads held-out intents from benchmark_dataset.json, runs each through
-the Router, compares against ground truth, and reports accuracy with
+Load held-out intents from benchmark_dataset.json, run each through
+the Router, compare against ground truth, and report accuracy with
 per-tier breakdown.
 
 This benchmark does NOT require the SLM — it only uses the embedding
@@ -17,7 +17,7 @@ import os
 import sys
 import time
 
-# Ensure we import from the local source
+# Add local source to path.
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from dhi.agent.router import Router
@@ -83,7 +83,7 @@ def run_routing_benchmark():
 
     print(f"\nOverall Accuracy: {correct_count}/{total} = {accuracy:.1f}%")
 
-    # Per-tier breakdown
+    # Compute per-tier breakdown.
     for tier in [1, 2, 3]:
         tier_results = [r for r in results if r["tier"] == tier]
         tier_correct = sum(1 for r in tier_results if r["correct"])
@@ -91,14 +91,14 @@ def run_routing_benchmark():
         tier_acc = tier_correct / tier_total * 100 if tier_total > 0 else 0
         print(f"  Tier {tier}: {tier_correct}/{tier_total} = {tier_acc:.1f}%")
 
-    # Latency stats
+    # Calculate latency statistics.
     import statistics
     mean_lat = statistics.mean(latencies)
     std_lat = statistics.stdev(latencies) if len(latencies) > 1 else 0
     print(f"\nRouting Latency: {mean_lat:.1f} ± {std_lat:.1f} ms (mean ± std)")
     print(f"  Min: {min(latencies):.1f} ms | Max: {max(latencies):.1f} ms")
 
-    # Misclassified intents
+    # List misclassified intents.
     misclassified = [r for r in results if not r["correct"]]
     if misclassified:
         print(f"\nMisclassified Intents ({len(misclassified)}):")
@@ -107,7 +107,7 @@ def run_routing_benchmark():
             print(f"         expected={r['expected']}, got={r['predicted']} "
                   f"(confidence: {r['confidence']:.0%})")
 
-    # Confusion matrix
+    # Compute confusion matrix.
     print("\nConfusion Matrix:")
     tp = sum(1 for r in results if r["expected"] == "local" and r["predicted"] == "local")
     fn = sum(1 for r in results if r["expected"] == "local" and r["predicted"] == "cloud")
@@ -117,7 +117,7 @@ def run_routing_benchmark():
     print(f"  Actual Local:     {tp:3d}             {fn:3d}")
     print(f"  Actual Cloud:     {fp:3d}             {tn:3d}")
 
-    # Save detailed results to JSON
+    # Save detailed results to JSON.
     results_dir = os.path.join(os.path.dirname(__file__), "results")
     os.makedirs(results_dir, exist_ok=True)
     output_path = os.path.join(results_dir, "routing_results.json")

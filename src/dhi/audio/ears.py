@@ -4,33 +4,29 @@ from faster_whisper import WhisperModel
 from ctypes import CFUNCTYPE, c_char_p, c_int, cdll
 from dhi.ui import console
 
-# --- ALSA C-LEVEL SILENCER ---
-# ALSA bypasses normal Python stderr. We use ctypes to overwrite its internal C error handler globally.
+# Suppress ALSA C-level errors that bypass normal Python stderr.
 try:
     ERROR_HANDLER_FUNC = CFUNCTYPE(None, c_char_p, c_int, c_char_p, c_int, c_char_p)
     def py_error_handler(filename, line, function, err, fmt):
-        pass # Do nothing when ALSA complains
+        pass  # Ignore ALSA complaints.
     c_error_handler = ERROR_HANDLER_FUNC(py_error_handler)
     asound = cdll.LoadLibrary('libasound.so.2')
     asound.snd_lib_error_set_handler(c_error_handler)
 except OSError:
-    pass # If libasound isn't found, safely ignore
+    pass  # Ignore if libasound is not found.
 
 class Ear:
     def __init__(self, model_size="distil-small.en", device="cpu", compute_type="int8"):
-        """
-        Initialize the Hearing System with Dynamic Silence Detection.
-        'base.en' is slightly faster and more accurate if you only speak English.
-        """
+        """Initialize the hearing system with dynamic silence detection."""
         console.print(f"[info]ℹ Loading Whisper Model ({model_size})...[/info]")
         try:
             self.model = WhisperModel(model_size, device=device, compute_type=compute_type)
             self.recognizer = sr.Recognizer()
             
-            # --- Dynamic Silence Settings ---
+            # Configure dynamic silence settings.
             self.recognizer.energy_threshold = 300 
             self.recognizer.dynamic_energy_threshold = True
-            # The pause threshold: it stops recording after 2.5 seconds of silence
+            # Stop recording after 2.5 seconds of silence.
             self.recognizer.pause_threshold =  2.5
             
             console.print(f"[success]✓ Model loaded successfully.[/success]")
@@ -39,21 +35,19 @@ class Ear:
             raise e
 
     def listen_and_transcribe(self, filename="/tmp/pragma_voice.wav") -> str:
-        """
-        Listens dynamically until the user stops speaking, then transcribes instantly.
-        """
+        """Listen dynamically until speech stops, then transcribe."""
         
         with sr.Microphone() as source:
             console.print(f"[info]ℹ Adjusting for ambient noise...[/info]")
-            # Calibrate against background noise for half a second
+            # Calibrate against background noise for half a second.
             self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
 
             try:
                 with console.status("[bold cyan]Listening... (Auto-stops when you pause)[/bold cyan]", spinner="dots"):
-                    # Records until silence is detected
+                    # Record until silence is detected.
                     audio = self.recognizer.listen(source, timeout=10, phrase_time_limit=30)
 
-                # Save to Arch's /tmp RAM disk for zero-latency I/O
+                # Save audio to /tmp RAM disk for fast I/O.
                 with open(filename, "wb") as f:
                     f.write(audio.get_wav_data())
 
@@ -68,7 +62,7 @@ class Ear:
 
                 full_text = " ".join([segment.text for segment in segments]).strip()
 
-                # Cleanup the temp file
+                # Clean up temporary file.
                 if os.path.exists(filename):
                     os.remove(filename)
 
@@ -81,14 +75,13 @@ class Ear:
                 console.print(f"[error]⨯ Error: {e}[/error]")
                 return ""
 
-# --- Unit Test Block ---
+# Unit Tests
 if __name__ == "__main__":
     try:
         ear = Ear(model_size="base.en")
         console.print("Prepare to speak after hitting ENTER...")
         input()
         
-        # Now it's just one clean function call
         text = ear.listen_and_transcribe()
         
         console.print(f"\n[success]You said: {text}[/success]")

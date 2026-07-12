@@ -23,7 +23,7 @@ def load_config():
     try:
         with open(CONFIG_FILE, 'r') as f:
             user_config = json.load(f)
-            # Merge with default to ensure new keys exist
+            # Merge with default config to ensure new keys exist
             for key, value in DEFAULT_CONFIG.items():
                 if key not in user_config:
                     user_config[key] = value

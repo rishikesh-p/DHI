@@ -6,13 +6,11 @@ from dhi.ui import console
 
 class SafeExecutor:
     def __init__(self, allowed_workdir=None):
-        """
-        Initializes the Sandbox with Hyprland Support.
-        """
+        """Initialize the sandbox with Hyprland support."""
         self.workdir = allowed_workdir if allowed_workdir else os.getcwd()
         self.workdir = os.path.abspath(self.workdir)
         
-        # Detect Hyprland Signature
+        # Detect Hyprland signature.
         self.hypr_sig = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE")
         
         console.print("[info]ℹ Sandbox Initialized[/info]")
@@ -20,40 +18,35 @@ class SafeExecutor:
              console.print("[system]✦ Hyprland IPC Detected[/system]")
 
     def execute(self, command, requires_network=False):
-        # We don't print the execution here anymore because graph.py handles the UI logging for execution.
-        # This keeps the output cleaner.
 
-        # Core Bubblewrap Command
+
+        # Build core bubblewrap command.
         bwrap_cmd = [
             "bwrap",
-            "--ro-bind", "/", "/",          # Read-only System
+            "--ro-bind", "/", "/",          # Read-only system
             "--dev", "/dev",                # Devices
             "--proc", "/proc",              # Processes
-            "--bind", self.workdir, self.workdir, # Project Write Access
+            "--bind", self.workdir, self.workdir, # Project write access
             "--tmpfs", "/tmp",              # Fake /tmp for safety
             
-            # --- THE GENERIC SOLUTION ---
-            # Trick all messy applications into using the temporary /tmp 
-            # folder for their caches instead of crashing against the Read-Only /home
+            # Direct applications to use the temporary /tmp folder for caches
+            # instead of the read-only /home directory.
             "--setenv", "HOME", "/tmp",
-            # -------------------------------
             
             "--die-with-parent",
             "--new-session"
         ]
         
-        # --- ZERO-TRUST NETWORK SANDBOXING ---
+        # Zero-trust network sandboxing.
         if not requires_network:
             bwrap_cmd.append("--unshare-net")
 
-        # --- HYPRLAND INTEGRATION ---
-        # If we are in Hyprland, we must expose the socket to control windows
+        # Expose the Hyprland socket to control windows if detected.
         if self.hypr_sig:
-            # 1. Pass the Env Variable
+            # Pass the environment variable.
             bwrap_cmd.extend(["--setenv", "HYPRLAND_INSTANCE_SIGNATURE", self.hypr_sig])
             
-            # 2. Bind the Socket Folder (Usually /tmp/hypr)
-            # We check both common locations
+            # Bind the socket folder checking common locations.
             paths_to_check = [
                 f"/tmp/hypr/{self.hypr_sig}",
                 f"/run/user/{os.getuid()}/hypr/{self.hypr_sig}"
@@ -61,15 +54,10 @@ class SafeExecutor:
             
             for path in paths_to_check:
                 if os.path.exists(path):
-                    # We bind it to the SAME path inside the sandbox
-                    # We need to make the parent dir first inside the tmpfs
-                    # But bwrap is tricky. The easiest way is to bind the specific folder.
-                    # Since we are overlaying a tmpfs on /tmp, we need to be careful.
-                    
-                    # Strategy: Bind the specific socket dir to itself
+                    # Bind the specific socket directory to itself to bypass bwrap tmpfs complexity.
                     bwrap_cmd.extend(["--bind", path, path])
 
-        # Add the command to run
+        # Add the target command.
         bwrap_cmd.extend(["bash", "-c", command])
 
         try:
@@ -91,11 +79,11 @@ class SafeExecutor:
                 return {"success": True, "output": final_out}
             else:
                 error_msg = result.stderr.strip()
-                # If stderr has text, it's a real crash (syntax error, missing package, etc.)
+                # Handle standard errors (e.g., syntax error, missing package).
                 if error_msg:
                     console.print(f"[error]⨯ Execution Failed (Exit Code {result.returncode})[/error]")
                     return {"success": False, "output": f"Error: {error_msg}"}
-                # If stderr is empty, it was a silent failure (like an empty grep search)
+                # Handle silent failures (e.g., empty grep search).
                 else:
                     console.print(f"[warning]⚠ Silent Exit (Code {result.returncode}) - No matches found.[/warning]")
                     return {"success": False, "output": "Command executed, but returned no matches or output."}

@@ -2,14 +2,14 @@
 """
 DHI Benchmark: LanceDB Semantic Cache Latency
 ===============================================
-Measures: The 31.84ms number in the paper (Cache Hit Latency).
+Measure the cache hit latency.
 
-Seeds a temporary LanceDB instance with known intent→command pairs,
-then measures lookup latency across multiple trials. Reports mean,
+Seed a temporary LanceDB instance with known intent→command pairs,
+then measure lookup latency across multiple trials. Report mean,
 std, and p95 latency.
 
-This benchmark only uses the embedding model (nomic-embed-text).
-Runs in ~30 seconds.
+Use only the embedding model (nomic-embed-text).
+Run in ~30 seconds.
 """
 
 import json
@@ -19,13 +19,13 @@ import time
 import tempfile
 import shutil
 
-# Ensure we import from the local source
+# Add local source to path.
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from dhi.agent.memory import MemorySystem
 
 # --- Seed Data ---
-# 20 realistic intent→command pairs to populate the cache
+# Define realistic intent-command pairs to populate the cache.
 SEED_ENTRIES = [
     {"intent": "list files", "command": "ls -la"},
     {"intent": "show disk usage", "command": "df -h"},
@@ -49,9 +49,9 @@ SEED_ENTRIES = [
     {"intent": "sort file contents", "command": "sort data.txt"},
 ]
 
-# Queries to test — mix of exact matches, near matches, and misses
+# Define queries to test exact matches, near matches, and misses.
 TEST_QUERIES = [
-    # Near-exact matches (should hit cache with distance < 0.05)
+    # Define near-exact matches expected to hit cache with distance < 0.05.
     {"query": "list files", "expect_hit": True},
     {"query": "show disk usage", "expect_hit": True},
     {"query": "show running processes", "expect_hit": True},
@@ -63,14 +63,14 @@ TEST_QUERIES = [
     {"query": "check the kernel version", "expect_hit": True},
     {"query": "show current directory", "expect_hit": True},
 
-    # Near matches (may or may not hit depending on threshold)
+    # Define near matches that may hit cache.
     {"query": "list all my files with details", "expect_hit": False},
     {"query": "how much free disk space do I have", "expect_hit": False},
     {"query": "show me the processes using the most CPU", "expect_hit": False},
     {"query": "display file contents of readme", "expect_hit": False},
     {"query": "search for the word error in log files", "expect_hit": False},
 
-    # Clear misses (should not hit cache)
+    # Define clear misses not expected to hit cache.
     {"query": "write a python web scraper", "expect_hit": False},
     {"query": "build a docker container", "expect_hit": False},
     {"query": "create an HTML dashboard", "expect_hit": False},
@@ -84,15 +84,15 @@ def run_cache_benchmark():
     print("DHI Benchmark: LanceDB Semantic Cache Latency")
     print("=" * 60)
 
-    # Use a temporary directory so we don't pollute the real DB
+    # Use a temporary directory for database.
     tmp_dir = tempfile.mkdtemp(prefix="dhi_bench_cache_")
     print(f"[*] Using temporary DB at: {tmp_dir}")
 
     try:
-        # Initialize with temporary path
+        # Initialize memory system with temporary path.
         memory = MemorySystem(db_path=tmp_dir)
 
-        # Seed the database
+        # Seed the database.
         print(f"[*] Seeding {len(SEED_ENTRIES)} entries...")
         for entry in SEED_ENTRIES:
             memory.save(entry["intent"], entry["command"])
@@ -105,7 +105,7 @@ def run_cache_benchmark():
         hits = 0
         misses = 0
 
-        # Run multiple passes for statistical significance
+        # Run multiple passes for statistical significance.
         NUM_PASSES = 3
         for pass_num in range(NUM_PASSES):
             for test in TEST_QUERIES:
@@ -123,7 +123,7 @@ def run_cache_benchmark():
                     miss_latencies.append(elapsed_ms)
                     misses += 1
 
-                if pass_num == 0:  # Only print on first pass
+                if pass_num == 0:  # Print results on first pass only.
                     status = "HIT " if is_hit else "MISS"
                     cmd_preview = result[:50] if result else "—"
                     print(f"  [{status}] \"{query[:45]:45s}\" → {cmd_preview} ({elapsed_ms:.1f}ms)")
@@ -178,7 +178,7 @@ def run_cache_benchmark():
             print(f"\nrecall() Latency (RAG retrieval, {NUM_PASSES} passes):")
             print(f"  Mean: {mean_recall:.2f} ms | Std: {std_recall:.2f} ms")
 
-        # Save results
+        # Save results.
         results_dir = os.path.join(os.path.dirname(__file__), "results")
         os.makedirs(results_dir, exist_ok=True)
         output_path = os.path.join(results_dir, "cache_results.json")
@@ -204,7 +204,7 @@ def run_cache_benchmark():
         print(f"\nDetailed results saved to: {output_path}")
 
     finally:
-        # Clean up temporary DB
+        # Clean up temporary database.
         shutil.rmtree(tmp_dir, ignore_errors=True)
         print(f"\n[*] Cleaned up temporary DB.")
 

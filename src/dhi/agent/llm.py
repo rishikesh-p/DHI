@@ -6,14 +6,16 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from dhi.ui import console
 from dhi.config import load_config
 
-# Load environment variables (API Keys)
+# Load environment variables
 load_dotenv()
 
 class AI_Brain:
     def __init__(self, mode="local", temperature=0):
-        """
-        Initialize the Brain.
-        mode: 'local' (Ollama) or 'cloud' (Gemini)
+        """Initialize the AI brain.
+        
+        Args:
+            mode: 'local' (Ollama) or 'cloud' (Gemini)
+            temperature: The temperature for the LLM.
         """
         self.mode = mode
         
@@ -23,7 +25,7 @@ class AI_Brain:
             api_key = config.get("cloud_api_key", "")
             
             if not api_key:
-                # Fallback to .env for power users
+                # Fallback to .env configuration
                 api_key = os.getenv("GOOGLE_API_KEY")
                 
             if not api_key:
@@ -42,7 +44,7 @@ class AI_Brain:
                 console.print(f"[error]⨯ Unsupported cloud provider: {provider}[/error]")
                 raise ValueError("Unsupported Cloud Provider")
         else:
-            # Local Mode
+            # Configure local model
             config = load_config()
             model_name = config.get("local_model", "qwen3.5:4b")
             console.print(f"[info]ℹ Connecting to Local ({model_name})...[/info]")
@@ -58,10 +60,11 @@ class AI_Brain:
             )
 
     def think(self, prompt, system_prompt=None):
-        """
-        Sends a prompt to the selected LLM and streams the response.
-        system_prompt: Required. The behavioral instructions for the LLM.
-                       Callers must explicitly provide this — there is no default.
+        """Send a prompt to the selected LLM and stream the response.
+        
+        Args:
+            prompt: The user input prompt.
+            system_prompt: Behavioral instructions for the LLM. Required.
         """
         if not system_prompt:
             raise ValueError("system_prompt is required. Pass LOCAL_SYSTEM_PROMPT or CLOUD_SYSTEM_PROMPT from graph.py.")
@@ -72,7 +75,7 @@ class AI_Brain:
         ]
 
         try:
-            # Real-Time Token Streaming with Spinner
+            # Stream tokens in real-time
             full_response = ""
             chunks = self.llm.stream(messages)
             
@@ -86,7 +89,7 @@ class AI_Brain:
                     console.print(chunk.content, style="cyan", end="", markup=False)
                     full_response += chunk.content
             
-            print() # Newline after streaming
+            print()
             return full_response
         except Exception as e:
             return f"Error during thought process: {e}"

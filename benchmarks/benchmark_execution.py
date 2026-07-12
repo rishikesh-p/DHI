@@ -2,9 +2,9 @@
 """
 DHI Benchmark: Zero-Shot and Self-Healing Execution Success
 =============================================================
-Measures: The 68.2% (zero-shot) and 94.1% (healed) numbers in the paper.
+Measure the zero-shot and healed numbers.
 
-For each Tier 1 and Tier 2 intent in the held-out dataset, this script:
+Test execution success rate for Tier 1 and Tier 2 intents:
   1. Generates a command via the local SLM (gemma4:e4b-it)
   2. Parses the output for a bash code block
   3. Executes it in the Bubblewrap sandbox
@@ -24,7 +24,7 @@ import re
 import sys
 import time
 
-# Ensure we import from the local source
+# Add local source to path.
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from dhi.agent.llm import AI_Brain
@@ -32,21 +32,21 @@ from dhi.agent.graph import LOCAL_SYSTEM_PROMPT, parse_llm_output
 from dhi.tools.executor import SafeExecutor
 
 # --- Configuration ---
-MODEL_NAME = "gemma4:e4b-it-q4_K_M"  # The model the paper claims to test on, matching installed tag
+MODEL_NAME = "gemma4:e4b-it-q4_K_M"  # Define the test model.
 MAX_RETRIES = 3               # Maximum retry attempts per intent
 
 
 def load_local_intents():
-    """Load only Tier 1 and Tier 2 intents (local route) from the dataset."""
+    """Load Tier 1 and Tier 2 intents from the dataset."""
     dataset_path = os.path.join(os.path.dirname(__file__), "benchmark_dataset.json")
     with open(dataset_path, "r") as f:
         data = json.load(f)
-    # Only test intents that should be handled locally
+    # Filter for local route intents.
     return [i for i in data["intents"] if i["expected_route"] == "local"]
 
 
 def check_semantic_match(command, expected_patterns):
-    """Check if the generated command contains any of the expected patterns."""
+    """Check if the generated command contains expected patterns."""
     if not command:
         return False
     cmd_lower = command.lower()
@@ -62,10 +62,10 @@ def run_execution_benchmark():
     intents = load_local_intents()
     print(f"Loaded {len(intents)} local intents (Tier 1 + Tier 2)\n")
 
-    # Initialize components directly — bypass the graph to avoid interactive prompts
+    # Initialize components directly to bypass interactive prompts.
     print("[*] Initializing SLM...")
     brain = AI_Brain(mode="local")
-    # Override the model to ensure we use the paper's claimed model
+    # Set the LLM model.
     brain.llm.model = MODEL_NAME
 
     print("[*] Initializing Sandbox...")
@@ -93,13 +93,13 @@ def run_execution_benchmark():
         error_context = None
 
         for attempt in range(1 + MAX_RETRIES):  # 1 initial + MAX_RETRIES retries
-            # Build prompt with error feedback if retrying
+            # Build prompt with error feedback if retrying.
             if error_context:
                 full_prompt = f"{prompt}\n\nERROR FROM LAST ATTEMPT — fix this:\n{error_context}"
             else:
                 full_prompt = prompt
 
-            # Generate command
+            # Generate command.
             start = time.time()
             try:
                 response = brain.think(full_prompt, system_prompt=LOCAL_SYSTEM_PROMPT)
@@ -111,7 +111,7 @@ def run_execution_benchmark():
             if attempt == 0:
                 gen_latency = gen_time
 
-            # Parse output
+            # Parse LLM output.
             command = parse_llm_output(response)
             if not command:
                 error_context = "Failed to generate a valid bash code block. Output ONLY a ```bash``` block."
@@ -122,11 +122,11 @@ def run_execution_benchmark():
                 retries_used = attempt
                 continue
 
-            # Determine network requirement (same logic as graph.py)
+            # Determine network requirement.
             network_keywords = ['curl', 'wget', 'download', 'git', 'http', 'https', 'api', 'ping', 'ssh']
             requires_network = any(word in intent_text.lower() for word in network_keywords)
 
-            # Execute in sandbox
+            # Execute command in sandbox.
             exec_result = executor.execute(command, requires_network=requires_network)
 
             if exec_result["success"]:
@@ -181,7 +181,7 @@ def run_execution_benchmark():
     print(f"  Healed Success (exit 0, ≤3 retries):    {healed_count}/{total} = {healed_rate:.1f}%")
     print(f"  Semantic Success (exit 0 + pattern):     {semantic_count}/{total} = {semantic_rate:.1f}%")
 
-    # Per-tier breakdown
+    # Compute per-tier breakdown.
     for tier in [1, 2]:
         tier_results = [r for r in results if r["tier"] == tier]
         if not tier_results:
@@ -195,14 +195,14 @@ def run_execution_benchmark():
         print(f"    Healed:     {t_hs}/{t_total} = {t_hs/t_total*100:.1f}%")
         print(f"    Semantic:   {t_sm}/{t_total} = {t_sm/t_total*100:.1f}%")
 
-    # Retry distribution
+    # Calculate retry distribution.
     retry_counts = [r["retries_used"] for r in results if r["healed_success"]]
     if retry_counts:
         import statistics
         avg_retries = statistics.mean(retry_counts)
         print(f"\n  Avg retries needed (for healed successes): {avg_retries:.1f}")
 
-    # Generation latency
+    # Calculate generation latency.
     latencies = [r["gen_latency_s"] for r in results if r["gen_latency_s"] > 0]
     if latencies:
         import statistics
@@ -210,14 +210,14 @@ def run_execution_benchmark():
         std_lat = statistics.stdev(latencies) if len(latencies) > 1 else 0
         print(f"\n  Generation Latency: {mean_lat:.1f} ± {std_lat:.1f} s (mean ± std)")
 
-    # Failed intents
+    # List failed intents.
     failed = [r for r in results if not r["healed_success"]]
     if failed:
         print(f"\nFailed Intents ({len(failed)}):")
         for r in failed:
             print(f"  [{r['id']}] \"{r['intent']}\"")
 
-    # Save results
+    # Save results to JSON.
     results_dir = os.path.join(os.path.dirname(__file__), "results")
     os.makedirs(results_dir, exist_ok=True)
     output_path = os.path.join(results_dir, "execution_results.json")
