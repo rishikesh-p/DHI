@@ -124,18 +124,21 @@ def parse_llm_output(response: str):
     return None
 
 def node_router(state: AgentState):
+    # Compute vector ONCE for the entire graph turn
+    input_vector = get_router().embedder.embed_query(state['input_text'])
+
     # Check for exact semantic match to bypass LLM
-    cached_cmd = get_memory().exact_match(state['input_text'])
+    cached_cmd = get_memory().exact_match_vec(input_vector)
     if cached_cmd:
         console.print(f"[success]⚡ Semantic Cache Hit! Bypassing reasoning engine.[/success]")
-        return {"plan": "executor", "command": cached_cmd, "route_confidence": 1.0}
+        return {"plan": "executor", "command": cached_cmd, "route_confidence": 1.0, "input_vector": input_vector}
 
     # Run mathematical routing
-    result = get_router().route(state['input_text'])
+    result = get_router().route_vec(input_vector)
     decision = result["route"]
     confidence = result["confidence"]
     console.print(f"[info]ℹ Route Selected: {decision.upper()} (confidence: {confidence:.0%})[/info]")
-    return {"plan": decision, "route_confidence": confidence}
+    return {"plan": decision, "route_confidence": confidence, "input_vector": input_vector}
 
 def _build_user_prompt(state: AgentState, history_str: str) -> str:
     """Build the user-message prompt.
@@ -143,7 +146,11 @@ def _build_user_prompt(state: AgentState, history_str: str) -> str:
     parts = [f"Task: {state['input_text']}"]
 
     # Add vector DB context if available
-    context = get_memory().recall(state['input_text'])
+    input_vector = state.get('input_vector')
+    if input_vector:
+        context = get_memory().recall_vec(input_vector)
+    else:
+        context = get_memory().recall(state['input_text'])
     if context and context.strip():
         parts.append(f"Relevant past commands:\n{context}")
 
@@ -251,7 +258,11 @@ def node_executor(state: AgentState):
 
     output = exec_result["output"]
     if state.get("input_text"):
-        get_memory().save(state['input_text'], cmd)
+        input_vector = state.get("input_vector")
+        if input_vector:
+            get_memory().save_vec(state['input_text'], input_vector, cmd)
+        else:
+            get_memory().save(state['input_text'], cmd)
     
     return {"command_output": output, "error": None}
 

@@ -56,25 +56,23 @@ class MemorySystem:
             self.table = None
 
     def save(self, intent, command, success=True):
-        """Store a text snippet in long-term memory.
-        
-        Skip saving if a near-duplicate already exists based on the deduplication threshold.
-        """
+        """Store a text snippet in long-term memory."""
+        if not self.table: return
+        vector = self.embedder.embed_query(intent)
+        self.save_vec(intent, vector, command, success)
+
+    def save_vec(self, intent, vector, command, success=True):
+        """Store a text snippet using a pre-computed vector."""
         if not self.table: return
         
-        # Convert text to vector
-        vector = self.embedder.embed_query(intent)
-        
-        # Check if a similar entry already exists to avoid duplicates
         try:
             existing = self.table.search(vector).distance_type("cosine").limit(1).to_pandas()
             if not existing.empty and existing.iloc[0]['_distance'] < DEDUP_THRESHOLD:
                 console.print(f"[muted]ℹ Skipping save — similar entry already exists.[/muted]")
                 return
         except Exception:
-            pass  # If search fails, save anyway
+            pass
         
-        # Add to database with metadata
         self.table.add([{
             "intent": intent,
             "command": command,
@@ -85,31 +83,28 @@ class MemorySystem:
         console.print(f"[muted]ℹ Stored in memory.[/muted]")
 
     def recall(self, query, limit=3):
-        """Find the most relevant memories for a query.
-        
-        Return up to `limit` results filtered by relevance threshold, excluding the seed record.
-        """
+        """Find the most relevant memories for a query."""
         if not self.table: return ""
-        
-        # Convert query to vector
         query_vec = self.embedder.embed_query(query)
+        return self.recall_vec(query_vec, limit)
+
+    def recall_vec(self, query_vec, limit=3):
+        """Find memories using a pre-computed vector."""
+        if not self.table: return ""
         
         results = self.table.search(query_vec).distance_type("cosine").limit(limit + 1).to_pandas()
         
         if results.empty:
             return ""
         
-        # Remove seed record and apply relevance threshold
         results = results[results['intent'] != "__init__"]
         results = results[results['_distance'] < RELEVANCE_THRESHOLD]
         
         if results.empty:
             return ""
         
-        # Take top `limit` results
         results = results.head(limit)
         
-        # Format results as a context string
         matches = [f"Request: {row['intent']} -> Command: {row['command']}" for _, row in results.iterrows()]
         context = "\n".join(f"- {m}" for m in matches)
         
@@ -117,13 +112,14 @@ class MemorySystem:
         return context
 
     def exact_match(self, query, threshold=0.05):
-        """Check if the query matches a previous intent almost exactly.
-        
-        Return the exact command to bypass the LLM if the distance is below the threshold.
-        """
+        """Check if query matches a previous intent almost exactly."""
         if not self.table: return None
-        
         query_vec = self.embedder.embed_query(query)
+        return self.exact_match_vec(query_vec, threshold)
+
+    def exact_match_vec(self, query_vec, threshold=0.05):
+        """Check for exact match using a pre-computed vector."""
+        if not self.table: return None
         try:
             results = self.table.search(query_vec).distance_type("cosine").limit(2).to_pandas()
             for _, row in results.iterrows():
@@ -137,17 +133,11 @@ class MemorySystem:
 # Unit Tests
 if __name__ == "__main__":
     mem = MemorySystem()
-    
-    # Test 1: Teach it something
     print("\n--- Teaching ---")
     mem.save("list files", "ls -la")
     mem.save("show disk usage", "df -h")
-    
-    # Test 2: Try saving a duplicate
     print("\n--- Duplicate ---")
-    mem.save("list files", "ls -la")  # Should skip
-    
-    # Test 3: Ask it something
+    mem.save("list files", "ls -la")
     print("\n--- Asking ---")
     context = mem.recall("list all my files")
     print(f"Context found:\n{context}")

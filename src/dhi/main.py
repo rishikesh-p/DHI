@@ -108,10 +108,11 @@ def main():
     
     data_dir = os.path.expanduser("~/.local/share/dhi")
     os.makedirs(data_dir, exist_ok=True)
-    db_path = os.path.join(data_dir, "pragma_state.db")
+    db_path = os.path.join(data_dir, "dhi_state.db")
     
     # Initialize storage and memory for persistent sessions
     conn = sqlite3.connect(db_path, check_same_thread=False)
+    conn.execute("PRAGMA journal_mode=WAL;")
     memory = SqliteSaver(conn)
     
     # Compile the graph with the checkpointer attached

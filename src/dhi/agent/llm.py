@@ -54,7 +54,6 @@ class AI_Brain:
                 stop=["<|endoftext|>", "User:", "<|im_end|>", "<|im_start|>"], 
                 reasoning=False,
                 keep_alive="30m",
-                max_tokens=100,
                 num_ctx=2048,
                 num_thread=4
             )

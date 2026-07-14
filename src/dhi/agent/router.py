@@ -130,15 +130,13 @@ class Router:
         self._simple_normed = self.simple_embeddings / np.linalg.norm(self.simple_embeddings, axis=1, keepdims=True)
 
     def route(self, input_text: str) -> dict:
-        """Score the input and return a route with confidence.
-
-        Returns:
-            dict: Route ('local' or 'cloud') and confidence score (0.0 to 1.0).
-        """
-
-        # Embed the user input and normalize.
+        """Score the input and return a route with confidence."""
         input_emb = np.array(self.embedder.embed_query(input_text))
-        input_normed = input_emb / np.linalg.norm(input_emb)
+        return self.route_vec(input_emb)
+
+    def route_vec(self, input_emb) -> dict:
+        """Score the input from a pre-computed vector."""
+        input_normed = np.array(input_emb) / np.linalg.norm(input_emb)
 
         # Vectorized cosine similarity via matrix-vector dot product.
         complex_scores = self._complex_normed @ input_normed

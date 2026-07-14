@@ -26,15 +26,15 @@ class Ear:
             # Configure dynamic silence settings.
             self.recognizer.energy_threshold = 300 
             self.recognizer.dynamic_energy_threshold = True
-            # Stop recording after 2.5 seconds of silence.
-            self.recognizer.pause_threshold =  2.5
+            # Stop recording after 0.8 seconds of silence for snappier response.
+            self.recognizer.pause_threshold = 0.8
             
             console.print(f"[success]✓ Model loaded successfully.[/success]")
         except Exception as e:
             console.print(f"[error]⨯ CRITICAL ERROR loading model: {e}[/error]")
             raise e
 
-    def listen_and_transcribe(self, filename="/tmp/pragma_voice.wav") -> str:
+    def listen_and_transcribe(self, filename="/tmp/dhi_voice.wav") -> str:
         """Listen dynamically until speech stops, then transcribe."""
         
         with sr.Microphone() as source:

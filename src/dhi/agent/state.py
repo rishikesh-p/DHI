@@ -6,6 +6,7 @@ class AgentState(TypedDict):
     messages: Annotated[Sequence[BaseMessage], add_messages]
     
     input_text: str          # What the user said
+    input_vector: list[float]# Pre-computed semantic vector for the query
     plan: str                # The LLM's explanation (or Router's decision)
     command: str             # The specific Bash command to run
     command_output: str      # What happened when we ran it
