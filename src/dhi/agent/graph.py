@@ -8,10 +8,6 @@ from dhi.ui import console
 
 # Import our modules
 from dhi.agent.state import AgentState
-from dhi.agent.llm import AI_Brain
-from dhi.tools.executor import SafeExecutor
-from dhi.agent.memory import MemorySystem
-from dhi.agent.router import Router
 from dhi.config import load_config
 
 # System Prompts
@@ -73,17 +69,23 @@ def get_config():
 
 def get_router():
     global _router
-    if _router is None: _router = Router()
+    if _router is None:
+        from dhi.agent.router import Router
+        _router = Router()
     return _router
 
 def get_executor():
     global _executor
-    if _executor is None: _executor = SafeExecutor()
+    if _executor is None:
+        from dhi.tools.executor import SafeExecutor
+        _executor = SafeExecutor()
     return _executor
 
 def get_memory():
     global _memory
-    if _memory is None: _memory = MemorySystem()
+    if _memory is None:
+        from dhi.agent.memory import MemorySystem
+        _memory = MemorySystem()
     return _memory
 
 _local_brain = None
@@ -92,12 +94,14 @@ _cloud_brain = None
 def get_local_brain():
     global _local_brain
     if _local_brain is None:
+        from dhi.agent.llm import AI_Brain
         _local_brain = AI_Brain(mode="local")
     return _local_brain
 
 def get_cloud_brain():
     global _cloud_brain
     if _cloud_brain is None:
+        from dhi.agent.llm import AI_Brain
         _cloud_brain = AI_Brain(mode="cloud")
     return _cloud_brain
 
@@ -115,7 +119,7 @@ def parse_llm_output(response: str):
     if not response or not response.strip():
         return None
         
-    code_block = re.search(r"```(?:bash|sh|python)?\n(.*?)```", response, re.DOTALL)
+    code_block = re.search(r"```[a-zA-Z]*[ \t]*\n(.*?)```", response, re.DOTALL)
     if code_block:
         return code_block.group(1).strip()
 
@@ -180,10 +184,11 @@ def node_local_reasoner(state: AgentState):
     try:
         response = get_local_brain().think(prompt, system_prompt=LOCAL_SYSTEM_PROMPT)
     except Exception as e:
+        error_msg = f"Error connecting to Local AI: {e}"
         return {
             "command": None,
-            "command_output": f"Error connecting to Local AI: {e}",
-            "error": None
+            "command_output": error_msg,
+            "error": error_msg
         }
     end_time = time.time()
     
@@ -204,11 +209,63 @@ def node_cloud_reasoner(state: AgentState):
     try:
         response = get_cloud_brain().think(prompt, system_prompt=CLOUD_SYSTEM_PROMPT)
     except Exception as e:
-        return {
-            "command": None,
-            "command_output": f"Error connecting to Cloud AI: {e}\nPlease go to [s]ettings and configure your API key.",
-            "error": None
-        }
+        error_str = str(e)
+        if "API_KEY_MISSING" in error_str or "API key not valid" in error_str or "API key required" in error_str or "401" in error_str or "auth" in error_str.lower():
+            console.print(f"\n[warning]⚠ Cloud API Key Missing or Invalid[/warning]")
+            
+            from rich.prompt import Prompt
+            from dhi.config import load_config, save_config
+            config = load_config()
+            
+            console.print("[info]Providers: [1] Google Gemini, [2] Anthropic Claude, [3] OpenAI (or compatible)[/info]")
+            provider_choice = Prompt.ask("Select Provider", choices=["1", "2", "3"], default="1")
+            provider_map = {"1": "google", "2": "anthropic", "3": "openai"}
+            selected_provider = provider_map[provider_choice]
+            
+            help_links = {
+                "google": "Get your key here: https://aistudio.google.com/app/apikey",
+                "anthropic": "Get your key here: https://console.anthropic.com/settings/keys",
+                "openai": "Get your key here: https://platform.openai.com/api-keys"
+            }
+            console.print(f"[dim]{help_links[selected_provider]}[/dim]")
+            
+            defaults = {"google": "gemini-2.5-flash", "anthropic": "claude-3-5-sonnet-20240620", "openai": "gpt-4o-mini"}
+            model = Prompt.ask(f"Model Name", default=defaults[selected_provider])
+            
+            base_url = ""
+            if selected_provider == "openai":
+                base_url = Prompt.ask(f"Custom Base URL (Leave empty for default OpenAI)")
+                
+            api_key = Prompt.ask(f"Enter {selected_provider.capitalize()} API Key (or press Enter to cancel)", password=True)
+            
+            if api_key.strip():
+                config["cloud_provider"] = selected_provider
+                config["cloud_model"] = model.strip()
+                config["cloud_base_url"] = base_url.strip()
+                config["cloud_api_key"] = api_key.strip()
+                save_config(config)
+                
+                # Force reload of the cloud brain so it picks up the new config
+                global _cloud_brain, _cached_config
+                _cloud_brain = None
+                _cached_config = None
+                
+                console.print("[success]✓ Configuration saved! Retrying...[/success]\n")
+                try:
+                    response = get_cloud_brain().think(prompt, system_prompt=CLOUD_SYSTEM_PROMPT)
+                except Exception as retry_e:
+                    error_msg = f"Error connecting to Cloud AI: {retry_e}\nPlease check your API key in [s]ettings."
+                    return {"command": None, "command_output": error_msg, "error": error_msg}
+            else:
+                error_msg = "Cloud AI cancelled: Missing API Key."
+                return {"command": None, "command_output": error_msg, "error": error_msg}
+        else:
+            error_msg = f"Error connecting to Cloud AI: {e}\nPlease go to [s]ettings and configure your API key."
+            return {
+                "command": None,
+                "command_output": error_msg,
+                "error": error_msg
+            }
     command = parse_llm_output(response)
     
     return {
@@ -221,6 +278,11 @@ def node_executor(state: AgentState):
     cmd = state['command']
     
     if not cmd:
+        if state.get('error'):
+            # A reasoner node already reported a critical failure (like a connection error).
+            console.print(f"[error]⨯ {state['error']}[/error]")
+            return {"retry_count": state["retry_count"] + 1}
+            
         error_msg = "Error: System failed to generate an executable code block."
         console.print(f"[error]⨯ {error_msg}[/error]")
         return {"command_output": "", "error": error_msg, "retry_count": state["retry_count"] + 1}
@@ -245,8 +307,12 @@ def node_executor(state: AgentState):
     
     # Determine network requirement.
     # Default to Zero-Trust (no Internet) unless explicitly requested.
-    network_keywords = ['curl', 'wget', 'download', 'git', 'http', 'https', 'api', 'ping', 'ssh']
-    requires_network = any(word in state.get('input_text', '').lower() for word in network_keywords)
+    network_keywords = [
+        'curl', 'wget', 'download', 'git', 'http', 'https', 'api', 'ping', 'ssh',
+        'pip', 'npm', 'cargo', 'docker', 'install', 'update', 'upgrade', 'clone', 'fetch', 'pull', 'push'
+    ]
+    search_text = (state.get('input_text', '') + ' ' + cmd).lower()
+    requires_network = state.get('force_network', False) or any(word in search_text for word in network_keywords)
     
     if not requires_network:
         console.print(f"[muted]🔒 Network Sandbox Enabled (Zero-Trust)[/muted]")
@@ -254,7 +320,16 @@ def node_executor(state: AgentState):
     exec_result = get_executor().execute(cmd, requires_network=requires_network)
     
     if not exec_result["success"]:
-         return {"command_output": exec_result["output"], "error": exec_result["output"], "retry_count": state["retry_count"] + 1}
+        output = exec_result["output"]
+        
+        # Reactive Sandboxing Check
+        if not requires_network:
+            net_errors = ["Network is unreachable", "Name or service not known", "Temporary failure in name resolution", "Could not resolve host", "Connection refused"]
+            if any(err in output for err in net_errors):
+                console.print("[warning]⚠ Network access was denied by the Zero-Trust Sandbox. Retrying with Network Enabled...[/warning]")
+                return {"force_network": True, "error": None}
+                
+        return {"command_output": output, "error": output, "retry_count": state["retry_count"] + 1}
 
     output = exec_result["output"]
     if state.get("input_text"):
@@ -270,7 +345,14 @@ def decide_route(state: AgentState):
     return state['plan']
 
 def should_continue(state: AgentState):
-    if state['error']:
+    if state.get('force_network') and not state.get('error'):
+        return "retry_execution"
+        
+    if state.get('error'):
+        # Connection/API errors are not recoverable by retrying.
+        if "Error connecting to" in state['error']:
+            return "end"
+
         confidence = state.get('route_confidence', 1.0)
 
         if state['plan'] == 'cloud':
@@ -314,5 +396,5 @@ workflow.add_edge("cloud", "executor")
 workflow.add_conditional_edges(
     "executor",
     should_continue,
-    {"retry_local": "local", "retry_cloud": "cloud", "fallback_cloud": "cloud", "end": END}
+    {"retry_local": "local", "retry_cloud": "cloud", "fallback_cloud": "cloud", "retry_execution": "executor", "end": END}
 )

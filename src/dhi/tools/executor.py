@@ -65,6 +65,7 @@ class SafeExecutor:
                 bwrap_cmd,
                 capture_output=True,
                 text=True,
+                errors="replace",
                 timeout=60
             )
             

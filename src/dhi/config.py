@@ -9,7 +9,9 @@ DEFAULT_CONFIG = {
     "stateful_local": False,
     "require_confirmation": True,
     "cloud_provider": "google",
-    "cloud_api_key": ""
+    "cloud_model": "gemini-2.5-flash",
+    "cloud_api_key": "",
+    "cloud_base_url": ""
 }
 
 def load_config():

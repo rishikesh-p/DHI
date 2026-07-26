@@ -12,4 +12,5 @@ class AgentState(TypedDict):
     command_output: str      # What happened when we ran it
     error: Union[str, None]  # Any error messages
     retry_count: int         # How many times we tried to fix bugs
+    force_network: bool      # True if the sandbox blocked network and we need to retry
     route_confidence: float  # How confident the router was (0.0 - 1.0)

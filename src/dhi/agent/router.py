@@ -125,9 +125,9 @@ class Router:
                 f.write(ANCHOR_VERSION)
             console.print("[success]✓ Anchors cached to disk.[/success]")
 
-        # Pre-normalize rows for fast cosine similarity via dot product.
-        self._complex_normed = self.complex_embeddings / np.linalg.norm(self.complex_embeddings, axis=1, keepdims=True)
-        self._simple_normed = self.simple_embeddings / np.linalg.norm(self.simple_embeddings, axis=1, keepdims=True)
+        # Pre-normalize rows for fast cosine similarity via dot product (add epsilon for safety).
+        self._complex_normed = self.complex_embeddings / (np.linalg.norm(self.complex_embeddings, axis=1, keepdims=True) + 1e-10)
+        self._simple_normed = self.simple_embeddings / (np.linalg.norm(self.simple_embeddings, axis=1, keepdims=True) + 1e-10)
 
     def route(self, input_text: str) -> dict:
         """Score the input and return a route with confidence."""
@@ -136,7 +136,7 @@ class Router:
 
     def route_vec(self, input_emb) -> dict:
         """Score the input from a pre-computed vector."""
-        input_normed = np.array(input_emb) / np.linalg.norm(input_emb)
+        input_normed = np.array(input_emb) / (np.linalg.norm(input_emb) + 1e-10)
 
         # Vectorized cosine similarity via matrix-vector dot product.
         complex_scores = self._complex_normed @ input_normed

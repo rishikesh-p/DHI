@@ -1,7 +1,5 @@
 import os
 from dotenv import load_dotenv
-from langchain_ollama import ChatOllama
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from dhi.ui import console
 from dhi.config import load_config
@@ -21,24 +19,45 @@ class AI_Brain:
         
         if mode == "cloud":
             config = load_config()
-            provider = config.get("cloud_provider", "google")
-            api_key = config.get("cloud_api_key", "")
+            provider = config.get("cloud_provider", "google").lower()
+            
+            # Allow environment variables to override config for development
+            env_key_map = {
+                "google": "GEMINI_API_KEY",
+                "openai": "OPENAI_API_KEY",
+                "anthropic": "ANTHROPIC_API_KEY"
+            }
+            env_var = env_key_map.get(provider, "")
+            api_key = os.environ.get(env_var) or config.get("cloud_api_key", "")
             
             if not api_key:
-                # Fallback to .env configuration
-                api_key = os.getenv("GOOGLE_API_KEY")
-                
-            if not api_key:
-                console.print("[error]⨯ Cloud API Key not configured! Use the [s] Settings Menu to set it.[/error]")
-                raise ValueError("Missing API Key")
+                raise ValueError("API_KEY_MISSING")
+            
+            model_name = config.get("cloud_model", "gemini-2.5-flash")
+            console.print(f"[info]ℹ Connecting to Cloud ({provider.capitalize()}: {model_name})...[/info]")
             
             if provider == "google":
-                model_name = config.get("cloud_model", "gemini-2.5-flash")
-                console.print(f"[info]ℹ Connecting to Cloud ({model_name})...[/info]")
+                from langchain_google_genai import ChatGoogleGenerativeAI
                 self.llm = ChatGoogleGenerativeAI(
                     model=model_name,
                     temperature=temperature,
                     google_api_key=api_key
+                )
+            elif provider == "openai":
+                from langchain_openai import ChatOpenAI
+                base_url = config.get("cloud_base_url", "")
+                self.llm = ChatOpenAI(
+                    model=model_name,
+                    temperature=temperature,
+                    openai_api_key=api_key,
+                    base_url=base_url if base_url else None
+                )
+            elif provider == "anthropic":
+                from langchain_anthropic import ChatAnthropic
+                self.llm = ChatAnthropic(
+                    model_name=model_name,
+                    temperature=temperature,
+                    anthropic_api_key=api_key
                 )
             else:
                 console.print(f"[error]⨯ Unsupported cloud provider: {provider}[/error]")
@@ -48,6 +67,9 @@ class AI_Brain:
             config = load_config()
             model_name = config.get("local_model", "qwen3.5:4b")
             console.print(f"[info]ℹ Connecting to Local ({model_name})...[/info]")
+            
+            from langchain_ollama import ChatOllama
+            
             self.llm = ChatOllama(
                 model=model_name,
                 temperature=temperature,
@@ -73,25 +95,24 @@ class AI_Brain:
             HumanMessage(content=prompt)
         ]
 
-        try:
-            # Stream tokens in real-time
-            full_response = ""
-            chunks = self.llm.stream(messages)
+        # Stream tokens in real-time.
+        # Exceptions (API errors, connection failures) are intentionally NOT caught here.
+        # They propagate to the graph's reasoner nodes which handle them properly.
+        full_response = ""
+        chunks = self.llm.stream(messages)
+        
+        with console.status(f"[bold cyan]Brain ({self.mode.upper()}) is evaluating prompt...[/bold cyan]", spinner="dots"):
+            first_chunk = next(chunks, None)
             
-            with console.status(f"[bold cyan]Brain ({self.mode.upper()}) is evaluating prompt...[/bold cyan]", spinner="dots"):
-                first_chunk = next(chunks, None)
-                
-            if first_chunk:
-                console.print(first_chunk.content, style="cyan", end="", markup=False)
-                full_response += first_chunk.content
-                for chunk in chunks:
-                    console.print(chunk.content, style="cyan", end="", markup=False)
-                    full_response += chunk.content
-            
-            print()
-            return full_response
-        except Exception as e:
-            return f"Error during thought process: {e}"
+        if first_chunk:
+            console.print(first_chunk.content, style="cyan", end="", markup=False)
+            full_response += first_chunk.content
+            for chunk in chunks:
+                console.print(chunk.content, style="cyan", end="", markup=False)
+                full_response += chunk.content
+        
+        print()
+        return full_response
 
 # --- Unit Test ---
 if __name__ == "__main__":

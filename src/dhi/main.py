@@ -11,7 +11,6 @@ from rich.align import Align
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langchain_core.messages import HumanMessage
 from dhi.ui import console
-from dhi.audio.ears import Ear
 from dhi.agent.graph import workflow, reload_agent
 from dhi.config import load_config, save_config
 
@@ -62,14 +61,36 @@ def settings_menu():
     require_conf = Prompt.ask("Require confirmation before executing commands?", choices=["y", "n"]) == "y"
     
     config = load_config()
+    console.print(f"\n[bold green]=== Cloud Provider Setup (Currently: {config.get('cloud_provider', 'google').capitalize()}) ===[/bold green]")
+    
+    console.print("[info]Providers: [1] Google Gemini, [2] Anthropic Claude, [3] OpenAI (or compatible)[/info]")
+    provider_choice = Prompt.ask("Select Provider (Leave empty to keep current)", choices=["1", "2", "3", ""], default="")
+    provider_map = {"1": "google", "2": "anthropic", "3": "openai"}
+    if provider_choice:
+        selected_provider = provider_map[provider_choice]
+        config["cloud_provider"] = selected_provider
+    else:
+        selected_provider = config.get("cloud_provider", "google")
+    
     current_key = config.get("cloud_api_key", "")
     key_status = "[bold green]Configured[/bold green]" if current_key else "[dim red]Not Configured[/dim red]"
+    console.print(f"Current {selected_provider.capitalize()} API Key Status: {key_status}")
     
-    console.print(f"\n[bold green]=== Cloud Provider Setup (Currently: {config.get('cloud_provider', 'google')}) ===[/bold green]")
-    console.print(f"Current API Key Status: {key_status}")
     new_key = Prompt.ask("Enter new API Key (Leave blank to keep current)", password=True)
     if new_key.strip():
         config["cloud_api_key"] = new_key.strip()
+    
+    defaults = {"google": "gemini-2.5-flash", "anthropic": "claude-3-5-sonnet-20240620", "openai": "gpt-4o-mini"}
+    current_cloud_model = config.get("cloud_model", defaults.get(selected_provider, "gemini-2.5-flash"))
+    cloud_model = Prompt.ask(f"Cloud Model", default=current_cloud_model)
+    config["cloud_model"] = cloud_model
+    
+    if selected_provider == "openai":
+        current_base_url = config.get("cloud_base_url", "")
+        base_url = Prompt.ask("Custom Base URL (Leave empty for default OpenAI)", default=current_base_url)
+        config["cloud_base_url"] = base_url.strip()
+    else:
+        config["cloud_base_url"] = ""
         
     config["local_model"] = selected_model
     config["stateful_local"] = stateful
@@ -150,6 +171,7 @@ def main():
             elif mode == 'v':
                 if ear is None:
                     console.print("[system]Loading Whisper Model...[/system]")
+                    from dhi.audio.ears import Ear
                     ear = Ear(model_size="distil-small.en")
                      
                 user_input = ear.listen_and_transcribe()

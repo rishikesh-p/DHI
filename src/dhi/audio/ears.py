@@ -1,7 +1,6 @@
 import os
-import speech_recognition as sr
-from faster_whisper import WhisperModel
 from ctypes import CFUNCTYPE, c_char_p, c_int, cdll
+from dhi.ui import console
 from dhi.ui import console
 
 # Suppress ALSA C-level errors that bypass normal Python stderr.
@@ -20,6 +19,9 @@ class Ear:
         """Initialize the hearing system with dynamic silence detection."""
         console.print(f"[info]ℹ Loading Whisper Model ({model_size})...[/info]")
         try:
+            import speech_recognition as sr
+            from faster_whisper import WhisperModel
+            
             self.model = WhisperModel(model_size, device=device, compute_type=compute_type)
             self.recognizer = sr.Recognizer()
             
@@ -36,6 +38,7 @@ class Ear:
 
     def listen_and_transcribe(self, filename="/tmp/dhi_voice.wav") -> str:
         """Listen dynamically until speech stops, then transcribe."""
+        import speech_recognition as sr
         
         with sr.Microphone() as source:
             console.print(f"[info]ℹ Adjusting for ambient noise...[/info]")
